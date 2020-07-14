@@ -1,4 +1,4 @@
-﻿/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+﻿/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -28,12 +28,13 @@ using System.Windows.Input;
 using ICSharpCode.ILSpy;
 using ICSharpCode.ILSpy.TreeNodes;
 using Reflexil.Forms;
+using Reflexil.Plugins.ILSpy.Command;
 using Reflexil.Wrappers;
 using MessageBox = System.Windows.MessageBox;
 
 namespace Reflexil.Plugins.ILSpy
 {
-	[ExportMainMenuCommand(Menu = "_View", MenuIcon = "resources/reflexil.png", Header = "Reflexil v2.0", MenuCategory = "Reflexil"), ExportToolbarCommand(ToolTip = "Reflexil v2.0", ToolbarCategory = "Reflexil", ToolbarIcon = "resources/reflexil.png")]
+	[ReflexilMainMenuCommand, ReflexilToolbarCommand]
 	public sealed class ILSpyPackage : BasePackage, ICommand
 	{
 		private ReflexilHost _host;
@@ -71,7 +72,7 @@ namespace Reflexil.Plugins.ILSpy
 						return;
 
 					AssemblyUnloaded(this, EventArgs.Empty);
-					
+
 					// Remove loaded contexts
 					var plugin = PluginFactory.GetInstance() as ILSpyPlugin;
 					if (plugin == null)
@@ -218,6 +219,4 @@ namespace Reflexil.Plugins.ILSpy
 			loadedAssembly.AssemblyList.HotReplaceAssembly(loadedAssembly.FileName, stream);
 		}
 	}
-
-
 }

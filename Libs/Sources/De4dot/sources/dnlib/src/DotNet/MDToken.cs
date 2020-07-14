@@ -1,36 +1,15 @@
-/*
-    Copyright (C) 2012-2014 de4dot@gmail.com
+// dnlib: See LICENSE.txt for more info
 
-    Permission is hereby granted, free of charge, to any person obtaining
-    a copy of this software and associated documentation files (the
-    "Software"), to deal in the Software without restriction, including
-    without limitation the rights to use, copy, modify, merge, publish,
-    distribute, sublicense, and/or sell copies of the Software, and to
-    permit persons to whom the Software is furnished to do so, subject to
-    the following conditions:
-
-    The above copyright notice and this permission notice shall be
-    included in all copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/
-
-﻿using System;
+using System;
 using System.Diagnostics;
 using dnlib.DotNet.MD;
 
 namespace dnlib.DotNet {
 	/// <summary>
-	/// MetaData token
+	/// Metadata token
 	/// </summary>
 	[DebuggerDisplay("{Table} {Rid}")]
-	public struct MDToken : IEquatable<MDToken>, IComparable<MDToken> {
+	public readonly struct MDToken : IEquatable<MDToken>, IComparable<MDToken> {
 		/// <summary>
 		/// Mask to get the rid from a raw metadata token
 		/// </summary>
@@ -51,38 +30,28 @@ namespace dnlib.DotNet {
 		/// <summary>
 		/// Returns the table type
 		/// </summary>
-		public Table Table {
-			get { return ToTable(token); }
-		}
+		public Table Table => ToTable(token);
 
 		/// <summary>
 		/// Returns the row id
 		/// </summary>
-		public uint Rid {
-			get { return ToRID(token); }
-		}
+		public uint Rid => ToRID(token);
 
 		/// <summary>
 		/// Returns the raw token
 		/// </summary>
-		public uint Raw {
-			get { return token; }
-		}
+		public uint Raw => token;
 
 		/// <summary>
 		/// Returns <c>true</c> if it's a <c>null</c> token
 		/// </summary>
-		public bool IsNull {
-			get { return Rid == 0; }
-		}
+		public bool IsNull => Rid == 0;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="token">Raw token</param>
-		public MDToken(uint token) {
-			this.token = token;
-		}
+		public MDToken(uint token) => this.token = token;
 
 		/// <summary>
 		/// Constructor
@@ -115,90 +84,62 @@ namespace dnlib.DotNet {
 		/// </summary>
 		/// <param name="token">A raw metadata token</param>
 		/// <returns>A <c>rid</c></returns>
-		public static uint ToRID(uint token) {
-			return token & RID_MASK;
-		}
+		public static uint ToRID(uint token) => token & RID_MASK;
 
 		/// <summary>
 		/// Returns the <c>rid</c> (row ID)
 		/// </summary>
 		/// <param name="token">A raw metadata token</param>
 		/// <returns>A <c>rid</c></returns>
-		public static uint ToRID(int token) {
-			return ToRID((uint)token);
-		}
+		public static uint ToRID(int token) => ToRID((uint)token);
 
 		/// <summary>
 		/// Returns the <c>table</c>
 		/// </summary>
 		/// <param name="token">A raw metadata token</param>
 		/// <returns>A metadata table index</returns>
-		public static Table ToTable(uint token) {
-			return (Table)(token >> TABLE_SHIFT);
-		}
+		public static Table ToTable(uint token) => (Table)(token >> TABLE_SHIFT);
 
 		/// <summary>
 		/// Returns the <c>table</c>
 		/// </summary>
 		/// <param name="token">A raw metadata token</param>
 		/// <returns>A metadata table index</returns>
-		public static Table ToTable(int token) {
-			return ToTable((uint)token);
-		}
+		public static Table ToTable(int token) => ToTable((uint)token);
 
 		/// <summary>
 		/// Gets the token as a raw 32-bit signed integer
 		/// </summary>
-		public int ToInt32() {
-			return (int)token;
-		}
+		public int ToInt32() => (int)token;
 
 		/// <summary>
 		/// Gets the token as a raw 32-bit unsigned integer
 		/// </summary>
-		public uint ToUInt32() {
-			return token;
-		}
+		public uint ToUInt32() => token;
 
 		/// <summary>Overloaded operator</summary>
-		public static bool operator ==(MDToken left, MDToken right) {
-			return left.CompareTo(right) == 0;
-		}
+		public static bool operator ==(MDToken left, MDToken right) => left.CompareTo(right) == 0;
 
 		/// <summary>Overloaded operator</summary>
-		public static bool operator !=(MDToken left, MDToken right) {
-			return left.CompareTo(right) != 0;
-		}
+		public static bool operator !=(MDToken left, MDToken right) => left.CompareTo(right) != 0;
 
 		/// <summary>Overloaded operator</summary>
-		public static bool operator <(MDToken left, MDToken right) {
-			return left.CompareTo(right) < 0;
-		}
+		public static bool operator <(MDToken left, MDToken right) => left.CompareTo(right) < 0;
 
 		/// <summary>Overloaded operator</summary>
-		public static bool operator >(MDToken left, MDToken right) {
-			return left.CompareTo(right) > 0;
-		}
+		public static bool operator >(MDToken left, MDToken right) => left.CompareTo(right) > 0;
 
 		/// <summary>Overloaded operator</summary>
-		public static bool operator <=(MDToken left, MDToken right) {
-			return left.CompareTo(right) <= 0;
-		}
+		public static bool operator <=(MDToken left, MDToken right) => left.CompareTo(right) <= 0;
 
 		/// <summary>Overloaded operator</summary>
-		public static bool operator >=(MDToken left, MDToken right) {
-			return left.CompareTo(right) >= 0;
-		}
+		public static bool operator >=(MDToken left, MDToken right) => left.CompareTo(right) >= 0;
 
 		/// <inheritdoc/>
-		public int CompareTo(MDToken other) {
-			return token.CompareTo(other.token);
-		}
+		public int CompareTo(MDToken other) => token.CompareTo(other.token);
 
 		/// <inheritdoc/>
-		public bool Equals(MDToken other) {
-			return CompareTo(other) == 0;
-		}
+		public bool Equals(MDToken other) => CompareTo(other) == 0;
 
 		/// <inheritdoc/>
 		public override bool Equals(object obj) {
@@ -208,13 +149,9 @@ namespace dnlib.DotNet {
 		}
 
 		/// <inheritdoc/>
-		public override int GetHashCode() {
-			return (int)token;
-		}
+		public override int GetHashCode() => (int)token;
 
 		/// <inheritdoc/>
-		public override string ToString() {
-			return string.Format("{0}", token);
-		}
+		public override string ToString() => token.ToString("X8");
 	}
 }

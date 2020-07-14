@@ -1,4 +1,4 @@
-﻿/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+﻿/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -40,15 +40,15 @@ namespace Reflexil.Plugins.ILSpy
 			var hostPanel = new Panel();
 			hostPanel.Controls.Add(_package.ReflexilWindow);
 
-			var host = new WindowsFormsHost { Child = hostPanel };
+			var host = new WindowsFormsHost {Child = hostPanel};
 			Root.Children.Add(host);
 		}
 
 		private void OnRootSizeChanged(object sender, SizeChangedEventArgs e)
 		{
-			CompositionTarget ct = GetCompositionTarget(Root);
-			Vector dips = new Vector(Root.ActualWidth, Root.ActualHeight);
-			Vector pixels = ct.TransformToDevice.Transform(dips);
+			var ct = GetCompositionTarget(Root);
+			var dips = new Vector(Root.ActualWidth, Root.ActualHeight);
+			var pixels = ct.TransformToDevice.Transform(dips);
 
 			_package.ReflexilWindow.Width = (int)pixels.X;
 			_package.ReflexilWindow.Height = (int)pixels.Y;
@@ -58,13 +58,13 @@ namespace Reflexil.Plugins.ILSpy
 		{
 			// check if the visual is attached to source
 			{
-				PresentationSource source = PresentationSource.FromVisual(control);
+				var source = PresentationSource.FromVisual(control);
 				if (source != null)
 					return source.CompositionTarget;
 			}
 
 			// create new source
-			using (HwndSource source = new HwndSource(new HwndSourceParameters()))
+			using (var source = new HwndSource(new HwndSourceParameters()))
 				return source.CompositionTarget;
 		}
 	}

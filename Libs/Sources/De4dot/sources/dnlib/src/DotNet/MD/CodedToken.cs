@@ -1,27 +1,6 @@
-/*
-    Copyright (C) 2012-2014 de4dot@gmail.com
+// dnlib: See LICENSE.txt for more info
 
-    Permission is hereby granted, free of charge, to any person obtaining
-    a copy of this software and associated documentation files (the
-    "Software"), to deal in the Software without restriction, including
-    without limitation the rights to use, copy, modify, merge, publish,
-    distribute, sublicense, and/or sell copies of the Software, and to
-    permit persons to whom the Software is furnished to do so, subject to
-    the following conditions:
-
-    The above copyright notice and this permission notice shall be
-    included in all copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/
-
-﻿using System;
+using System;
 
 namespace dnlib.DotNet.MD {
 	/// <summary>
@@ -99,6 +78,17 @@ namespace dnlib.DotNet.MD {
 			Table.TypeDef, Table.Method,
 		});
 
+		/// <summary>HasCustomDebugInformation coded token</summary>
+		public static readonly CodedToken HasCustomDebugInformation = new CodedToken(5, new Table[27] {
+			Table.Method, Table.Field, Table.TypeRef, Table.TypeDef,
+			Table.Param, Table.InterfaceImpl, Table.MemberRef, Table.Module,
+			Table.DeclSecurity, Table.Property, Table.Event, Table.StandAloneSig,
+			Table.ModuleRef, Table.TypeSpec, Table.Assembly, Table.AssemblyRef,
+			Table.File, Table.ExportedType, Table.ManifestResource, Table.GenericParam,
+			Table.GenericParamConstraint, Table.MethodSpec, Table.Document, Table.LocalScope,
+			Table.LocalVariable, Table.LocalConstant, Table.ImportScope,
+		});
+
 		readonly Table[] tableTypes;
 		readonly int bits;
 		readonly int mask;
@@ -106,16 +96,12 @@ namespace dnlib.DotNet.MD {
 		/// <summary>
 		/// Returns all types of tables
 		/// </summary>
-		public Table[] TableTypes {
-			get { return tableTypes; }
-		}
+		public Table[] TableTypes => tableTypes;
 
 		/// <summary>
 		/// Returns the number of bits that is used to encode table type
 		/// </summary>
-		public int Bits {
-			get { return bits; }
-		}
+		public int Bits => bits;
 
 		/// <summary>
 		/// Constructor
@@ -124,7 +110,7 @@ namespace dnlib.DotNet.MD {
 		/// <param name="tableTypes">All table types</param>
 		internal CodedToken(int bits, Table[] tableTypes) {
 			this.bits = bits;
-			this.mask = (1 << bits) - 1;
+			mask = (1 << bits) - 1;
 			this.tableTypes = tableTypes;
 		}
 
@@ -134,9 +120,7 @@ namespace dnlib.DotNet.MD {
 		/// <param name="token">The token</param>
 		/// <returns>Coded token</returns>
 		/// <seealso cref="Encode(MDToken,out uint)"/>
-		public uint Encode(MDToken token) {
-			return Encode(token.Raw);
-		}
+		public uint Encode(MDToken token) => Encode(token.Raw);
 
 		/// <summary>
 		/// Encodes a token
@@ -145,8 +129,7 @@ namespace dnlib.DotNet.MD {
 		/// <returns>Coded token</returns>
 		/// <seealso cref="Encode(uint,out uint)"/>
 		public uint Encode(uint token) {
-			uint codedToken;
-			Encode(token, out codedToken);
+			Encode(token, out uint codedToken);
 			return codedToken;
 		}
 
@@ -156,9 +139,7 @@ namespace dnlib.DotNet.MD {
 		/// <param name="token">The token</param>
 		/// <param name="codedToken">Coded token</param>
 		/// <returns><c>true</c> if successful</returns>
-		public bool Encode(MDToken token, out uint codedToken) {
-			return Encode(token.Raw, out codedToken);
-		}
+		public bool Encode(MDToken token, out uint codedToken) => Encode(token.Raw, out codedToken);
 
 		/// <summary>
 		/// Encodes a token
@@ -185,8 +166,7 @@ namespace dnlib.DotNet.MD {
 		/// <returns>Decoded token or 0 on failure</returns>
 		/// <seealso cref="Decode(uint,out MDToken)"/>
 		public MDToken Decode2(uint codedToken) {
-			uint token;
-			Decode(codedToken, out token);
+			Decode(codedToken, out uint token);
 			return new MDToken(token);
 		}
 
@@ -197,8 +177,7 @@ namespace dnlib.DotNet.MD {
 		/// <returns>Decoded token or 0 on failure</returns>
 		/// <seealso cref="Decode(uint,out uint)"/>
 		public uint Decode(uint codedToken) {
-			uint token;
-			Decode(codedToken, out token);
+			Decode(codedToken, out uint token);
 			return token;
 		}
 
@@ -209,8 +188,7 @@ namespace dnlib.DotNet.MD {
 		/// <param name="token">Decoded token</param>
 		/// <returns><c>true</c> if successful</returns>
 		public bool Decode(uint codedToken, out MDToken token) {
-			uint decodedToken;
-			bool result = Decode(codedToken, out decodedToken);
+			bool result = Decode(codedToken, out uint decodedToken);
 			token = new MDToken(decodedToken);
 			return result;
 		}

@@ -1,29 +1,11 @@
 //
-// TypeSystem.cs
-//
 // Author:
 //   Jb Evain (jbevain@gmail.com)
 //
-// Copyright (c) 2008 - 2011 Jb Evain
+// Copyright (c) 2008 - 2015 Jb Evain
+// Copyright (c) 2008 - 2011 Novell, Inc.
 //
-// Permission is hereby granted, free of charge, to any person obtaining
-// a copy of this software and associated documentation files (the
-// "Software"), to deal in the Software without restriction, including
-// without limitation the rights to use, copy, modify, merge, publish,
-// distribute, sublicense, and/or sell copies of the Software, and to
-// permit persons to whom the Software is furnished to do so, subject to
-// the following conditions:
-//
-// The above copyright notice and this permission notice shall be
-// included in all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-// LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-// OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-// WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+// Licensed under the MIT/X11 license.
 //
 
 using System;
@@ -96,7 +78,7 @@ namespace Mono.Cecil {
 
 		sealed class CommonTypeSystem : TypeSystem {
 
-			AssemblyNameReference corlib;
+			AssemblyNameReference core_library;
 
 			public CommonTypeSystem (ModuleDefinition module)
 				: base (module)
@@ -108,30 +90,23 @@ namespace Mono.Cecil {
 				return CreateTypeReference (@namespace, name);
 			}
 
-			public AssemblyNameReference GetCorlibReference ()
+			public AssemblyNameReference GetCoreLibraryReference ()
 			{
-				if (corlib != null)
-					return corlib;
+				if (core_library != null)
+					return core_library;
 
-				const string mscorlib = "mscorlib";
+				if (module.TryGetCoreLibraryReference (out core_library))
+					return core_library;
 
-				var references = module.AssemblyReferences;
-
-				for (int i = 0; i < references.Count; i++) {
-					var reference = references [i];
-					if (reference.Name == mscorlib)
-						return corlib = reference;
-				}
-
-				corlib = new AssemblyNameReference {
-					Name = mscorlib,
+				core_library = new AssemblyNameReference {
+					Name = Mixin.mscorlib,
 					Version = GetCorlibVersion (),
 					PublicKeyToken = new byte [] { 0xb7, 0x7a, 0x5c, 0x56, 0x19, 0x34, 0xe0, 0x89 },
 				};
 
-				references.Add (corlib);
+				module.AssemblyReferences.Add (core_library);
 
-				return corlib;
+				return core_library;
 			}
 
 			Version GetCorlibVersion ()
@@ -151,7 +126,7 @@ namespace Mono.Cecil {
 
 			TypeReference CreateTypeReference (string @namespace, string name)
 			{
-				return new TypeReference (@namespace, name, module, GetCorlibReference ());
+				return new TypeReference (@namespace, name, module, GetCoreLibraryReference ());
 			}
 		}
 
@@ -189,7 +164,7 @@ namespace Mono.Cecil {
 
 		internal static TypeSystem CreateTypeSystem (ModuleDefinition module)
 		{
-			if (module.IsCorlib ())
+			if (module.IsCoreLibrary ())
 				return new CoreTypeSystem (module);
 
 			return new CommonTypeSystem (module);
@@ -215,18 +190,23 @@ namespace Mono.Cecil {
 					return typeRef;
 				var type = LookupType ("System", name);
 				type.etype = element_type;
-				type.IsValueType = true;
+				type.KnownValueType ();
 				return typeRef = type;
 			}
 		}
 
+		[Obsolete ("Use CoreLibrary")]
 		public IMetadataScope Corlib {
+			get { return CoreLibrary; }
+		}
+
+		public IMetadataScope CoreLibrary {
 			get {
 				var common = this as CommonTypeSystem;
 				if (common == null)
 					return module;
 
-				return common.GetCorlibReference ();
+				return common.GetCoreLibraryReference ();
 			}
 		}
 
@@ -323,5 +303,57 @@ namespace Mono.Cecil {
 			get { return type_eventhandler ?? (LookupSystemValueType(ref type_eventhandler, "EventHandler", ElementType.None)); }
 		}
 		// HACK - Reflexil - Ends
+	}
+
+	static partial class Mixin {
+
+		public const string mscorlib = "mscorlib";
+		public const string system_runtime = "System.Runtime";
+		public const string system_private_corelib = "System.Private.CoreLib";
+		public const string netstandard = "netstandard";
+
+		public static bool TryGetCoreLibraryReference (this ModuleDefinition module, out AssemblyNameReference reference)
+		{
+			var references = module.AssemblyReferences;
+
+			for (int i = 0; i < references.Count; i++) {
+				reference = references [i];
+				if (IsCoreLibrary (reference))
+					return true;
+			}
+
+			reference = null;
+			return false;
+
+		}
+
+		public static bool IsCoreLibrary (this ModuleDefinition module)
+		{
+			if (module.Assembly == null)
+				return false;
+
+			if (!IsCoreLibrary (module.Assembly.Name))
+				return false;
+
+			if (module.HasImage && module.Read (module, (m, reader) => reader.image.GetTableLength (Table.AssemblyRef) > 0))
+				return false;
+
+			return true;
+		}
+
+		public static void KnownValueType (this TypeReference type)
+		{
+			if (!type.IsDefinition)
+				type.IsValueType = true;
+		}
+
+		static bool IsCoreLibrary (AssemblyNameReference reference)
+		{
+			var name = reference.Name;
+			return name == mscorlib
+				|| name == system_runtime
+				|| name == system_private_corelib
+				|| name == netstandard;
+		}
 	}
 }

@@ -1,29 +1,7 @@
-/*
-    Copyright (C) 2012-2014 de4dot@gmail.com
+// dnlib: See LICENSE.txt for more info
 
-    Permission is hereby granted, free of charge, to any person obtaining
-    a copy of this software and associated documentation files (the
-    "Software"), to deal in the Software without restriction, including
-    without limitation the rights to use, copy, modify, merge, publish,
-    distribute, sublicense, and/or sell copies of the Software, and to
-    permit persons to whom the Software is furnished to do so, subject to
-    the following conditions:
-
-    The above copyright notice and this permission notice shall be
-    included in all copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/
-
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Text;
-using dnlib.Threading;
 
 namespace dnlib.DotNet.Emit {
 	/// <summary>
@@ -41,7 +19,7 @@ namespace dnlib.DotNet.Emit {
 
 			var sb = new StringBuilder();
 
-			sb.Append(string.Format("IL_{0:X4}: ", instr.Offset));
+			sb.Append($"IL_{instr.Offset:X4}: ");
 			sb.Append(instr.OpCode.Name);
 			AddOperandString(sb, instr, " ");
 
@@ -64,9 +42,7 @@ namespace dnlib.DotNet.Emit {
 		/// </summary>
 		/// <param name="sb">Place result here</param>
 		/// <param name="instr">The instruction</param>
-		public static void AddOperandString(StringBuilder sb, Instruction instr) {
-			AddOperandString(sb, instr, string.Empty);
-		}
+		public static void AddOperandString(StringBuilder sb, Instruction instr) => AddOperandString(sb, instr, string.Empty);
 
 		/// <summary>
 		/// Add an instruction's operand to <paramref name="sb"/>
@@ -102,12 +78,12 @@ namespace dnlib.DotNet.Emit {
 			case OperandType.InlineR:
 			case OperandType.ShortInlineI:
 			case OperandType.ShortInlineR:
-				sb.Append(string.Format("{0}{1}", extra, op));
+				sb.Append($"{extra}{op}");
 				break;
 
 			case OperandType.InlineSig:
 				sb.Append(extra);
-				sb.Append(FullNameCreator.MethodFullName(null, (UTF8String)null, op as MethodSig));
+				sb.Append(FullNameFactory.MethodFullName(null, (UTF8String)null, op as MethodSig, null, null, null, null));
 				break;
 
 			case OperandType.InlineString:
@@ -124,7 +100,7 @@ namespace dnlib.DotNet.Emit {
 					for (int i = 0; i < targets.Count; i++) {
 						if (i != 0)
 							sb.Append(',');
-						AddInstructionTarget(sb, targets.Get(i, null));
+						AddInstructionTarget(sb, targets[i]);
 					}
 					sb.Append(')');
 				}
@@ -150,7 +126,7 @@ namespace dnlib.DotNet.Emit {
 			if (targetInstr == null)
 				sb.Append("null");
 			else
-				sb.Append(string.Format("IL_{0:X4}", targetInstr.Offset));
+				sb.Append($"IL_{targetInstr.Offset:X4}");
 		}
 
 		static void EscapeString(StringBuilder sb, string s, bool addQuotes) {
@@ -173,7 +149,7 @@ namespace dnlib.DotNet.Emit {
 					case '\t': sb.Append(@"\t"); break;
 					case '\v': sb.Append(@"\v"); break;
 					default:
-						sb.Append(string.Format(@"\u{0:X4}", (int)c));
+						sb.Append($@"\u{(int)c:X4}");
 						break;
 					}
 				}

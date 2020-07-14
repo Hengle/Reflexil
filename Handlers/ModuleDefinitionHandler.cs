@@ -1,4 +1,4 @@
-/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -19,20 +19,14 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#region Imports
-
 using System;
 using Mono.Cecil;
 using Reflexil.Plugins;
-
-#endregion
 
 namespace Reflexil.Handlers
 {
 	public partial class ModuleDefinitionHandler : IHandler
 	{
-		#region Properties
-
 		private ModuleDefinition _moddef;
 
 		public bool IsItemHandled(object item)
@@ -45,14 +39,15 @@ namespace Reflexil.Handlers
 			get { return _moddef; }
 		}
 
+		ModuleDefinition IHandler.TargetObjectModule
+		{
+			get { return _moddef; }
+		}
+
 		public string Label
 		{
 			get { return "Module definition"; }
 		}
-
-		#endregion
-
-		#region Events
 
 		public void OnConfigurationChanged(object sender, EventArgs e)
 		{
@@ -64,16 +59,12 @@ namespace Reflexil.Handlers
 			CustomAttributes.Rehash();
 		}
 
-		#endregion
-
-		#region Methods
-
 		public ModuleDefinitionHandler()
 		{
 			InitializeComponent();
 		}
 
-		public void HandleItem(ModuleDefinition moddef)
+		private void HandleItem(ModuleDefinition moddef)
 		{
 			_moddef = moddef;
 
@@ -85,7 +76,5 @@ namespace Reflexil.Handlers
 		{
 			HandleItem(PluginFactory.GetInstance().GetModuleDefinition(item));
 		}
-
-		#endregion
 	}
 }

@@ -1,4 +1,4 @@
-/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -19,21 +19,12 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#region Imports
-
-using System;
 using System.Windows.Forms;
-using Mono.Cecil;
-using Mono.Cecil.Cil;
-
-#endregion
 
 namespace Reflexil.Editors
 {
 	public sealed class NotSupportedOperandEditor : TextBox, IOperandEditor<object>
 	{
-		#region Properties
-
 		public string Label
 		{
 			get { return "[Not supported]"; }
@@ -50,10 +41,6 @@ namespace Reflexil.Editors
 			set { Text = value.ToString(); }
 		}
 
-		#endregion
-
-		#region Methods
-
 		public NotSupportedOperandEditor()
 		{
 			Dock = DockStyle.Fill;
@@ -65,15 +52,8 @@ namespace Reflexil.Editors
 			return true;
 		}
 
-		public Instruction CreateInstruction(ILProcessor worker, OpCode opcode)
-		{
-			throw (new NotImplementedException());
-		}
-
-		public void Initialize(MethodDefinition mdef)
+		public void Refresh(object context)
 		{
 		}
-
-		#endregion
 	}
 }

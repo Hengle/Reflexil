@@ -1,29 +1,11 @@
 //
-// ByteBufferEqualityComparer.cs
-//
 // Author:
 //   Jb Evain (jbevain@gmail.com)
 //
-// Copyright (c) 2008 - 2011 Jb Evain
+// Copyright (c) 2008 - 2015 Jb Evain
+// Copyright (c) 2008 - 2011 Novell, Inc.
 //
-// Permission is hereby granted, free of charge, to any person obtaining
-// a copy of this software and associated documentation files (the
-// "Software"), to deal in the Software without restriction, including
-// without limitation the rights to use, copy, modify, merge, publish,
-// distribute, sublicense, and/or sell copies of the Software, and to
-// permit persons to whom the Software is furnished to do so, subject to
-// the following conditions:
-//
-// The above copyright notice and this permission notice shall be
-// included in all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-// LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-// OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-// WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+// Licensed under the MIT/X11 license.
 //
 
 using System;
@@ -50,29 +32,17 @@ namespace Mono.Cecil.PE {
 
 		public int GetHashCode (ByteBuffer buffer)
 		{
-#if !BYTE_BUFFER_WELL_DISTRIBUTED_HASH
-			var hash = 0;
+			// See http://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
+			const int fnv_offset_bias = unchecked((int)2166136261);
+			const int fnv_prime = 16777619;
+
+			var hash_code = fnv_offset_bias;
 			var bytes = buffer.buffer;
+
 			for (int i = 0; i < buffer.length; i++)
-				hash = (hash * 37) ^ bytes [i];
+				hash_code = unchecked ((hash_code ^ bytes [i]) * fnv_prime);
 
-			return hash;
-#else
-			const uint p = 16777619;
-			uint hash = 2166136261;
-
-			var bytes = buffer.buffer;
-			for (int i = 0; i < buffer.length; i++)
-			    hash = (hash ^ bytes [i]) * p;
-
-			hash += hash << 13;
-			hash ^= hash >> 7;
-			hash += hash << 3;
-			hash ^= hash >> 17;
-			hash += hash << 5;
-
-			return (int) hash;
-#endif
-		}
+			return hash_code;
+ 		}
 	}
 }

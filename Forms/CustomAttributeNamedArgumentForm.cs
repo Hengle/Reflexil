@@ -1,4 +1,4 @@
-/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -19,27 +19,16 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#region Imports
-
-using System;
 using System.ComponentModel;
 using System.Windows.Forms;
 using Mono.Cecil;
 using Mono.Collections.Generic;
 
-#endregion
-
 namespace Reflexil.Forms
 {
 	public partial class CustomAttributeNamedArgumentForm : Form
 	{
-		#region Fields
-
 		private bool _useFields;
-
-		#endregion
-
-		#region Properties
 
 		public Collection<CustomAttributeNamedArgument> ArgumentContainer
 		{
@@ -59,13 +48,10 @@ namespace Reflexil.Forms
 					ctl.Focus();
 					if (!Validate()) return false;
 				}
+
 				return true;
 			}
 		}
-
-		#endregion
-
-		#region Methods
 
 		public CustomAttributeNamedArgumentForm()
 		{
@@ -81,10 +67,6 @@ namespace Reflexil.Forms
 			return ShowDialog();
 		}
 
-		#endregion
-
-		#region Events
-
 		private void AttributeArgumentEditor_Validating(object sender, CancelEventArgs e)
 		{
 			var validated = false;
@@ -92,10 +74,10 @@ namespace Reflexil.Forms
 			if (AttributeArgumentEditor.TypeReferenceEditor.SelectedOperand != null)
 			{
 				var arg = AttributeArgumentEditor.SelectedArgument;
-				if (arg.Type is TypeSpecification)
+				var typeSpecification = arg.Type as TypeSpecification;
+				if (typeSpecification != null)
 				{
-					var tspec = arg.Type as TypeSpecification;
-					validated = tspec.ElementType != null;
+					validated = typeSpecification.ElementType != null;
 				}
 				else
 					validated = true;
@@ -114,7 +96,7 @@ namespace Reflexil.Forms
 
 		private void ItemName_Validating(object sender, CancelEventArgs e)
 		{
-			if (String.IsNullOrEmpty(ItemName.Text))
+			if (string.IsNullOrEmpty(ItemName.Text))
 			{
 				ErrorProvider.SetError(ItemName, "Name is mandatory");
 				e.Cancel = true;
@@ -124,7 +106,5 @@ namespace Reflexil.Forms
 				ErrorProvider.SetError(ItemName, string.Empty);
 			}
 		}
-
-		#endregion
 	}
 }

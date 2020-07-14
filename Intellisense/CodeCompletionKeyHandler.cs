@@ -58,9 +58,6 @@ namespace Reflexil.Intellisense
 			return handler;
 		}
 
-		/// <summary>
-		/// Return true to handle the keypress, return false to let the text area handle the keypress
-		/// </summary>
 		private bool TextAreaKeyEventHandler(char key)
 		{
 			if (_codeCompletionWindow != null)
@@ -81,47 +78,49 @@ namespace Reflexil.Intellisense
 					IntellisenseForm.DummyFileName, // Filename - will be passed back to the provider
 					completionDataProvider, // Provider to get the list of possible completions
 					key // Key pressed - will be passed to the provider
-					);
+				);
 				if (_codeCompletionWindow != null)
 				{
 					// ShowCompletionWindow can return null when the provider returns an empty list
 					_codeCompletionWindow.Closed += CloseCodeCompletionWindow;
 				}
 			}
-			else if ((key == '('))
+			else if (key == '(')
 			{
 				if (_insightWindow != null && (!_insightWindow.IsDisposed))
 				{
 					// provider returned an empty list, so the window never been opened
 					CloseInsightWindow(this, EventArgs.Empty);
 				}
+
 				IInsightDataProvider insightdataprovider = new MethodInsightDataProvider(_iForm);
 				_insightWindow = new InsightWindow(_iForm, _editor);
 				_insightWindow.Closed += CloseInsightWindow;
 				_insightWindow.AddInsightDataProvider(insightdataprovider, IntellisenseForm.DummyFileName);
 				_insightWindow.ShowInsightWindow();
 			}
+
 			return false;
 		}
 
 		private void CloseCodeCompletionWindow(object sender, EventArgs e)
 		{
-			if (_codeCompletionWindow != null)
-			{
-				_codeCompletionWindow.Closed -= CloseCodeCompletionWindow;
-				_codeCompletionWindow.Dispose();
-				_codeCompletionWindow = null;
-			}
+			if (_codeCompletionWindow == null)
+				return;
+
+			_codeCompletionWindow.Closed -= CloseCodeCompletionWindow;
+			_codeCompletionWindow.Dispose();
+			_codeCompletionWindow = null;
 		}
 
 		private void CloseInsightWindow(object sender, EventArgs e)
 		{
-			if (_insightWindow != null)
-			{
-				_insightWindow.Closed -= CloseInsightWindow;
-				_insightWindow.Dispose();
-				_insightWindow = null;
-			}
+			if (_insightWindow == null)
+				return;
+
+			_insightWindow.Closed -= CloseInsightWindow;
+			_insightWindow.Dispose();
+			_insightWindow = null;
 		}
 	}
 }

@@ -1,4 +1,4 @@
-/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -19,8 +19,6 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#region Imports
-
 using System.Collections;
 using System.Collections.Generic;
 using System.Windows.Forms;
@@ -28,21 +26,13 @@ using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Reflexil.Forms;
 
-#endregion
-
 namespace Reflexil.Editors
 {
-	public class MultipleInstructionReferenceEditor : BasePopupControl, IOperandEditor<Instruction[]>
+	public class MultipleInstructionReferenceEditor : BasePopupControl, IOperandEditor<Instruction[]>, IInstructionOperandEditor
 	{
-		#region Fields
-
 		private MethodDefinition _mdef;
 		private readonly List<Instruction> _instructions;
 		private List<Instruction> _selectedInstructions;
-
-		#endregion
-
-		#region Properties
 
 		public string Label
 		{
@@ -72,7 +62,7 @@ namespace Reflexil.Editors
 		object IOperandEditor.SelectedOperand
 		{
 			get { return SelectedOperand; }
-			set { SelectedOperand = (Instruction[]) value; }
+			set { SelectedOperand = (Instruction[])value; }
 		}
 
 		public Instruction[] SelectedOperand
@@ -80,10 +70,6 @@ namespace Reflexil.Editors
 			get { return SelectedInstructions.ToArray(); }
 			set { SelectedInstructions = new List<Instruction>(value); }
 		}
-
-		#endregion
-
-		#region Events
 
 		protected override void OnClick(System.EventArgs e)
 		{
@@ -96,17 +82,13 @@ namespace Reflexil.Editors
 			}
 		}
 
-		#endregion
-
-		#region Methods
-
 		public MultipleInstructionReferenceEditor()
 		{
 		}
 
 		public bool IsOperandHandled(object operand)
 		{
-			return (operand) is Instruction[];
+			return operand is Instruction[];
 		}
 
 		public MultipleInstructionReferenceEditor(ICollection instructions)
@@ -131,11 +113,9 @@ namespace Reflexil.Editors
 			return worker.Create(opcode, _selectedInstructions.ToArray());
 		}
 
-		public void Initialize(MethodDefinition mdef)
+		public void Refresh(object context)
 		{
-			_mdef = mdef;
+			_mdef = context as MethodDefinition;
 		}
-
-		#endregion
 	}
 }

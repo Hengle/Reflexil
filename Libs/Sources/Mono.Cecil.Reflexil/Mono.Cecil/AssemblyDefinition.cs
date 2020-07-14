@@ -1,29 +1,11 @@
 //
-// AssemblyDefinition.cs
-//
 // Author:
 //   Jb Evain (jbevain@gmail.com)
 //
-// Copyright (c) 2008 - 2011 Jb Evain
+// Copyright (c) 2008 - 2015 Jb Evain
+// Copyright (c) 2008 - 2011 Novell, Inc.
 //
-// Permission is hereby granted, free of charge, to any person obtaining
-// a copy of this software and associated documentation files (the
-// "Software"), to deal in the Software without restriction, including
-// without limitation the rights to use, copy, modify, merge, publish,
-// distribute, sublicense, and/or sell copies of the Software, and to
-// permit persons to whom the Software is furnished to do so, subject to
-// the following conditions:
-//
-// The above copyright notice and this permission notice shall be
-// included in all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-// LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-// OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-// WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+// Licensed under the MIT/X11 license.
 //
 
 using System;
@@ -33,7 +15,7 @@ using Mono.Collections.Generic;
 
 namespace Mono.Cecil {
 
-	public sealed class AssemblyDefinition : ICustomAttributeProvider, ISecurityDeclarationProvider {
+	public sealed class AssemblyDefinition : ICustomAttributeProvider, ISecurityDeclarationProvider, IDisposable {
 
 		AssemblyNameDefinition name;
 
@@ -107,6 +89,18 @@ namespace Mono.Cecil {
 		{
 		}
 
+		public void Dispose ()
+		{
+			if (this.modules == null) {
+				main_module.Dispose ();
+				return;
+			}
+
+			var modules = this.Modules;
+			for (int i = 0; i < modules.Count; i++)
+				modules [i].Dispose ();
+		}
+
 #if !READ_ONLY
 		public static AssemblyDefinition CreateAssembly (AssemblyNameDefinition assemblyName, string moduleName, ModuleKind kind)
 		{
@@ -160,19 +154,30 @@ namespace Mono.Cecil {
 		}
 
 #if !READ_ONLY
+
 		public void Write (string fileName)
 		{
 			Write (fileName, new WriterParameters ());
 		}
 
-		public void Write (Stream stream)
-		{
-			Write (stream, new WriterParameters ());
-		}
-
 		public void Write (string fileName, WriterParameters parameters)
 		{
 			main_module.Write (fileName, parameters);
+		}
+
+		public void Write ()
+		{
+			main_module.Write ();
+		}
+
+		public void Write (WriterParameters parameters)
+		{
+			main_module.Write (parameters);
+		}
+
+		public void Write (Stream stream)
+		{
+			Write (stream, new WriterParameters ());
 		}
 
 		public void Write (Stream stream, WriterParameters parameters)

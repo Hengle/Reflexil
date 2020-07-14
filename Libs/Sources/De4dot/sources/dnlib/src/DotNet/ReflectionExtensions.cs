@@ -1,27 +1,6 @@
-/*
-    Copyright (C) 2012-2014 de4dot@gmail.com
+// dnlib: See LICENSE.txt for more info
 
-    Permission is hereby granted, free of charge, to any person obtaining
-    a copy of this software and associated documentation files (the
-    "Software"), to deal in the Software without restriction, including
-    without limitation the rights to use, copy, modify, merge, publish,
-    distribute, sublicense, and/or sell copies of the Software, and to
-    permit persons to whom the Software is furnished to do so, subject to
-    the following conditions:
-
-    The above copyright notice and this permission notice shall be
-    included in all copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/
-
-﻿using System;
+using System;
 using System.Reflection;
 
 namespace dnlib.DotNet {
@@ -38,7 +17,7 @@ namespace dnlib.DotNet {
 				return false;
 			var prop = self.GetType().GetProperty("IsSzArray", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 			if (prop != null)
-				return (bool)prop.GetValue(self, new object[0]);
+				return (bool)prop.GetValue(self, Array2.Empty<object>());
 			return (self.Name ?? string.Empty).EndsWith("[]");
 		}
 
@@ -88,9 +67,8 @@ namespace dnlib.DotNet {
 		/// not a generic method definition, i.e., a MethodSpec.
 		/// </summary>
 		/// <param name="mb">The method</param>
-		public static bool IsGenericButNotGenericMethodDefinition(this MethodBase mb) {
-			return mb != null && !mb.IsGenericMethodDefinition && mb.IsGenericMethod;
-		}
+		public static bool IsGenericButNotGenericMethodDefinition(this MethodBase mb) =>
+			mb != null && !mb.IsGenericMethodDefinition && mb.IsGenericMethod;
 
 		/// <summary>
 		/// Checks whether a parameter/prop/event type should be treated as if it is really a
@@ -101,21 +79,15 @@ namespace dnlib.DotNet {
 		/// </summary>
 		/// <param name="declaringType">Declaring type of method/event/property</param>
 		/// <param name="t">Parameter/property/event type</param>
-		internal static bool MustTreatTypeAsGenericInstType(this Type declaringType, Type t) {
-			return declaringType != null &&
-				declaringType.IsGenericTypeDefinition &&
-				t == declaringType;
-		}
+		internal static bool MustTreatTypeAsGenericInstType(this Type declaringType, Type t) =>
+			declaringType != null && declaringType.IsGenericTypeDefinition && t == declaringType;
 
 		/// <summary>
 		/// Checks whether <paramref name="type"/> is a type definition and not a type spec
 		/// (eg. pointer or generic type instantiation)
 		/// </summary>
 		/// <param name="type">this</param>
-		public static bool IsTypeDef(this Type type) {
-			return type != null &&
-				!type.HasElementType &&
-				(!type.IsGenericType || type.IsGenericTypeDefinition);
-		}
+		public static bool IsTypeDef(this Type type) =>
+			type != null && !type.HasElementType && (!type.IsGenericType || type.IsGenericTypeDefinition);
 	}
 }

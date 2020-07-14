@@ -1,4 +1,4 @@
-/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -19,27 +19,17 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#region Imports
-
 using System;
 using System.Linq;
 using System.Windows.Forms;
 using Mono.Cecil;
 using System.Collections;
 
-#endregion
-
 namespace Reflexil.Editors
 {
 	public partial class CustomAttributeArgumentEditor : UserControl
 	{
-		#region Fields
-
 		private bool _allowArray = true;
-
-		#endregion
-
-		#region Properties
 
 		public bool AllowArray
 		{
@@ -56,7 +46,7 @@ namespace Reflexil.Editors
 			get
 			{
 				var tref = TypeReferenceEditor.SelectedOperand;
-				switch ((TypeSpecification) TypeSpecification.SelectedItem)
+				switch ((TypeSpecification)TypeSpecification.SelectedItem)
 				{
 					case Editors.TypeSpecification.Array:
 						tref = new ArrayType(tref);
@@ -66,14 +56,14 @@ namespace Reflexil.Editors
 				object value = null;
 				if (ArgumentTypes.SelectedItem != null)
 				{
-					var editor = (IOperandEditor) ArgumentTypes.SelectedItem;
+					var editor = (IOperandEditor)ArgumentTypes.SelectedItem;
 
 					if (tref is ArrayType)
 					{
 						// Even with arraytype, editor can be IOperandEditor only (TypeReference)
 						if (ArgumentTypes.SelectedItem is IOperandsEditor)
 						{
-							var xeditor = (IOperandsEditor) editor;
+							var xeditor = (IOperandsEditor)editor;
 							value = WrapValues(xeditor.SelectedOperands);
 						}
 						else
@@ -82,16 +72,18 @@ namespace Reflexil.Editors
 					else
 						value = editor.SelectedOperand;
 				}
+
 				return new CustomAttributeArgument(tref, value);
 			}
 			set
 			{
 				TypeReferenceEditor.SelectedOperand = value.Type;
 				TypeSpecification.SelectedItem = Editors.TypeSpecification.Default;
-				if (value.Type is Mono.Cecil.TypeSpecification)
+
+				var typeSpecification = value.Type as Mono.Cecil.TypeSpecification;
+				if (typeSpecification != null)
 				{
-					var tspec = value.Type as Mono.Cecil.TypeSpecification;
-					TypeReferenceEditor.SelectedOperand = tspec.ElementType;
+					TypeReferenceEditor.SelectedOperand = typeSpecification.ElementType;
 					if (value.Type is ArrayType)
 						TypeSpecification.SelectedItem = Editors.TypeSpecification.Array;
 				}
@@ -105,31 +97,30 @@ namespace Reflexil.Editors
 				{
 					if (value.Value is CustomAttributeArgument)
 					{
-						SelectedArgument = (CustomAttributeArgument) value.Value;
+						SelectedArgument = (CustomAttributeArgument)value.Value;
 						return;
 					}
 
 					foreach (IOperandEditor editor in ArgumentTypes.Items)
 					{
-						if (editor is IOperandsEditor &&
-						    (TypeSpecification) TypeSpecification.SelectedItem == Editors.TypeSpecification.Array)
+						var operandsEditor = editor as IOperandsEditor;
+						if (operandsEditor != null && (TypeSpecification)TypeSpecification.SelectedItem == Editors.TypeSpecification.Array)
 						{
-							var xeditor = (IOperandsEditor) editor;
 							var values = UnwrapValues(value.Value);
-							if (xeditor.IsOperandsHandled(values))
+							if (operandsEditor.AreOperandsHandled(values))
 							{
-								ArgumentTypes.SelectedItem = xeditor;
-								xeditor.SelectedOperands = values;
+								ArgumentTypes.SelectedItem = operandsEditor;
+								operandsEditor.SelectedOperands = values;
 								return;
 							}
 						}
 
-						if (editor.IsOperandHandled(value.Value))
-						{
-							ArgumentTypes.SelectedItem = editor;
-							editor.SelectedOperand = value.Value;
-							return;
-						}
+						if (!editor.IsOperandHandled(value.Value))
+							continue;
+
+						ArgumentTypes.SelectedItem = editor;
+						editor.SelectedOperand = value.Value;
+						return;
 					}
 				}
 			}
@@ -140,7 +131,7 @@ namespace Reflexil.Editors
 			if (!(values is Array))
 				return null;
 
-			var array = values as Array;
+			var array = (Array)values;
 			var etype = array.GetType().GetElementType();
 
 			if (etype == null)
@@ -171,20 +162,12 @@ namespace Reflexil.Editors
 			return rType == null ? null : result.ToArray(rType);
 		}
 
-		#endregion
-
-		#region Events
-
 		private void ArgumentTypes_SelectedIndexChanged(object sender, EventArgs e)
 		{
 			ArgumentPanel.Controls.Clear();
-			ArgumentPanel.Controls.Add((Control) ArgumentTypes.SelectedItem);
-			((IOperandEditor) ArgumentTypes.SelectedItem).Initialize(null);
+			ArgumentPanel.Controls.Add((Control)ArgumentTypes.SelectedItem);
+			((IOperandEditor)ArgumentTypes.SelectedItem).Refresh(null);
 		}
-
-		#endregion
-
-		#region Methods
 
 		private void UpdateSpecification(bool allow, TypeSpecification specification)
 		{
@@ -210,14 +193,18 @@ namespace Reflexil.Editors
 			ArgumentTypes.Items.Add(new BooleanEditor());
 			ArgumentTypes.Items.Add(new ByteEditor());
 			ArgumentTypes.Items.Add(new SByteEditor());
+			ArgumentTypes.Items.Add(new ShortEditor());
+			ArgumentTypes.Items.Add(new UShortEditor());
 			ArgumentTypes.Items.Add(new IntegerEditor());
+			ArgumentTypes.Items.Add(new UIntegerEditor());
 			ArgumentTypes.Items.Add(new LongEditor());
+			ArgumentTypes.Items.Add(new ULongEditor());
 			ArgumentTypes.Items.Add(new SingleEditor());
 			ArgumentTypes.Items.Add(new DoubleEditor());
 
 			var stringEditor = new StringEditor();
 			var verbatimStringEditor = new VerbatimStringEditor();
-			var bridge = new GenericOperandEditorBridge<string>(stringEditor, verbatimStringEditor);
+			var bridge = new OperandEditorBridge<string>(stringEditor, verbatimStringEditor);
 			Disposed += delegate { bridge.Dispose(); };
 
 			ArgumentTypes.Items.Add(stringEditor);
@@ -227,7 +214,5 @@ namespace Reflexil.Editors
 
 			ArgumentTypes.SelectedIndex = 0;
 		}
-
-		#endregion
 	}
 }

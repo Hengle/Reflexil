@@ -7,9 +7,6 @@ using System.Windows.Forms;
 
 namespace Reflexil.Editors
 {
-	/// <summary>
-	/// Summary description for FormGoTo.
-	/// </summary>
 	public class HexGotoForm : Form
 	{
 		private Label _label;
@@ -18,9 +15,6 @@ namespace Reflexil.Editors
 		private Panel _panel;
 		private LongEditor _longEditor;
 
-		/// <summary>
-		/// Required designer variable.
-		/// </summary>
 		private readonly System.ComponentModel.Container _components = null;
 
 		public HexGotoForm()
@@ -28,9 +22,6 @@ namespace Reflexil.Editors
 			InitializeComponent();
 		}
 
-		/// <summary>
-		/// Clean up any resources being used.
-		/// </summary>
 		protected override void Dispose(bool disposing)
 		{
 			if (disposing)
@@ -40,6 +31,7 @@ namespace Reflexil.Editors
 					_components.Dispose();
 				}
 			}
+
 			base.Dispose(disposing);
 		}
 
@@ -106,7 +98,7 @@ namespace Reflexil.Editors
 			this._longEditor.Dock = System.Windows.Forms.DockStyle.Fill;
 			this._longEditor.Location = new System.Drawing.Point(0, 0);
 			this._longEditor.Name = "LongEditor";
-			this._longEditor.SelectedOperand = ((long) (0));
+			this._longEditor.SelectedOperand = ((long)(0));
 			this._longEditor.Size = new System.Drawing.Size(155, 22);
 			this._longEditor.TabIndex = 0;
 			this._longEditor.UseBaseSelector = true;

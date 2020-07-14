@@ -1,5 +1,5 @@
-﻿/*
-    Copyright (C) 2011-2014 de4dot@gmail.com
+/*
+    Copyright (C) 2011-2015 de4dot@gmail.com
 
     This file is part of de4dot.
 
@@ -78,17 +78,14 @@ namespace de4dot.code.deobfuscators.dotNET_Reactor.v4 {
 			return false;
 		}
 
-		static bool CheckType(TypeSig type, ElementType expectedType) {
-			return type != null && (type.ElementType == ElementType.Object || type.ElementType == expectedType);
-		}
+		static bool CheckType(TypeSig type, ElementType expectedType) =>
+			type != null && (type.ElementType == ElementType.Object || type.ElementType == expectedType);
 
 		public bool Remove(Blocks blocks) {
 			if (antiStrongNameMethod == null)
 				return false;
 
-			Block antiSnBlock;
-			int numInstructions;
-			if (!FindBlock(blocks, out antiSnBlock, out numInstructions))
+			if (!FindBlock(blocks, out var antiSnBlock, out int numInstructions))
 				return false;
 
 			if (antiSnBlock.FallThrough == null || antiSnBlock.Targets == null || antiSnBlock.Targets.Count != 1)

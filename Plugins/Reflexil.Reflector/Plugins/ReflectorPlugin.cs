@@ -1,4 +1,4 @@
-﻿/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+﻿/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -20,17 +20,14 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using Mono.Cecil;
 using Reflector.CodeModel;
 
 namespace Reflexil.Plugins.Reflector
 {
-
 	internal class ReflectorPlugin : BasePlugin
 	{
-
 		public override string HostApplication
 		{
 			get { return "Reflector"; }
@@ -109,18 +106,20 @@ namespace Reflexil.Plugins.Reflector
 
 		private static IModule GetModule(ITypeReference itype)
 		{
-			if ((itype.Owner) is IModule)
-				return ((IModule) itype.Owner);
+			var module = itype.Owner as IModule;
+			if (module != null)
+				return module;
 
-			if ((itype.Owner) is ITypeReference)
-				return GetModule((ITypeReference) itype.Owner);
+			var typeReference = itype.Owner as ITypeReference;
+			if (typeReference != null)
+				return GetModule(typeReference);
 
 			return null;
 		}
 
 		public override MethodDefinition GetMethodDefinition(object item)
 		{
-			return MapCecilTypeFromReflectorType<MethodDefinition, IMethodDeclaration>(item, mdec => GetModule(mdec.DeclaringType as ITypeDeclaration) , (context, mdec) => context.GetMethodDefinition(mdec));
+			return MapCecilTypeFromReflectorType<MethodDefinition, IMethodDeclaration>(item, mdec => GetModule(mdec.DeclaringType as ITypeDeclaration), (context, mdec) => context.GetMethodDefinition(mdec));
 		}
 
 		public override AssemblyNameReference GetAssemblyNameReference(object item)
@@ -182,7 +181,7 @@ namespace Reflexil.Plugins.Reflector
 
 		public override ModuleDefinition GetModuleDefinition(object item)
 		{
-			var location = Environment.ExpandEnvironmentVariables(((IModule) item).Location);
+			var location = Environment.ExpandEnvironmentVariables(((IModule)item).Location);
 			var context = GetAssemblyContext(location);
 			return context.AssemblyDefinition.MainModule;
 		}
@@ -220,18 +219,10 @@ namespace Reflexil.Plugins.Reflector
 			return null;
 		}
 
-		public void RemoveObsoleteAssemblyContexts(IEnumerable<String> locations)
-		{
-			var obsoleteKeys = Assemblycache.Keys.Where(k => !locations.Contains(k)).ToList();
-			foreach (var key in obsoleteKeys)
-				Assemblycache.Remove(key);
-		}
-
 		public void RemoveFromCache(object item)
 		{
 			foreach (var ctx in Assemblycache.Values.Cast<ReflectorAssemblyContext>())
 				ctx.RemoveFromCache(item);
 		}
-
 	}
 }

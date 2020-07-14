@@ -1,4 +1,4 @@
-/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -33,12 +33,8 @@ using Reflexil.Wrappers;
 
 namespace Reflexil.Plugins.Reflector
 {
-	/// <summary>
-	/// Addin entry point
-	/// </summary>
 	public class ReflectorPackage : BasePackage, global::Reflector.IPackage
 	{
-
 		private const string ReflectorToolsId = "Tools";
 		private const string ReflectorToolBarId = "ToolBar";
 		private const string ReflectorTypedecId = "Browser.TypeDeclaration";
@@ -81,7 +77,7 @@ namespace Reflexil.Plugins.Reflector
 
 		private T GetService<T>()
 		{
-			return ((T)(_sp.GetService(typeof(T))));
+			return (T)_sp.GetService(typeof(T));
 		}
 
 		private MenuUIContext AddMenu(string id)
@@ -165,10 +161,8 @@ namespace Reflexil.Plugins.Reflector
 					var eventmenu = AddMenu(ReflectorEventdecId);
 					var resmenu = AddMenu(ReflectorResourceId);
 
-					var allmenus = new []
-					{typemenu, assemblymenu, assemblyrefmenu, modulemenu, methodmenu, fieldmenu, propertymenu, eventmenu, resmenu};
-					var membersmenus = new []
-					{assemblyrefmenu, typemenu, methodmenu, fieldmenu, propertymenu, eventmenu, resmenu};
+					var allmenus = new[] {typemenu, assemblymenu, assemblyrefmenu, modulemenu, methodmenu, fieldmenu, propertymenu, eventmenu, resmenu};
+					var membersmenus = new[] {assemblyrefmenu, typemenu, methodmenu, fieldmenu, propertymenu, eventmenu, resmenu};
 
 					// Type declaration menu
 					_items.Add(new SubMenuUIContext(typemenu, "Inject constructor", (sender, e) => Inject(InjectType.Constructor),
@@ -192,7 +186,7 @@ namespace Reflexil.Plugins.Reflector
 						browserimages.Images[(int)EBrowserImages.PublicStructure]));
 
 					// Shared subitems for Assembly/Module
-					foreach (var menu in new[] { assemblymenu, modulemenu })
+					foreach (var menu in new[] {assemblymenu, modulemenu})
 					{
 						_items.Add(new SubMenuUIContext(menu, "Inject assembly reference",
 							(sender, e) => Inject(InjectType.AssemblyReference), browserimages.Images[(int)EBrowserImages.LinkedAssembly]));
@@ -310,7 +304,7 @@ namespace Reflexil.Plugins.Reflector
 			if (_hotReplaceAssemblyMethod == null)
 				return;
 
-			_hotReplaceAssemblyMethod.Invoke(_am, new object[] { wrapper.Location, stream });
+			_hotReplaceAssemblyMethod.Invoke(_am, new object[] {wrapper.Location, stream});
 		}
 	}
 }

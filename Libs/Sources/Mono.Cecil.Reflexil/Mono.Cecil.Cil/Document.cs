@@ -1,29 +1,11 @@
 //
-// Document.cs
-//
 // Author:
 //   Jb Evain (jbevain@gmail.com)
 //
-// Copyright (c) 2008 - 2011 Jb Evain
+// Copyright (c) 2008 - 2015 Jb Evain
+// Copyright (c) 2008 - 2011 Novell, Inc.
 //
-// Permission is hereby granted, free of charge, to any person obtaining
-// a copy of this software and associated documentation files (the
-// "Software"), to deal in the Software without restriction, including
-// without limitation the rights to use, copy, modify, merge, publish,
-// distribute, sublicense, and/or sell copies of the Software, and to
-// permit persons to whom the Software is furnished to do so, subject to
-// the following conditions:
-//
-// The above copyright notice and this permission notice shall be
-// included in all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-// LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-// OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-// WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+// Licensed under the MIT/X11 license.
 //
 
 using System;
@@ -39,6 +21,7 @@ namespace Mono.Cecil.Cil {
 		None,
 		MD5,
 		SHA1,
+		SHA256,
 	}
 
 	public enum DocumentLanguage {
@@ -62,16 +45,17 @@ namespace Mono.Cecil.Cil {
 		Microsoft,
 	}
 
-	public sealed class Document {
+	public sealed class Document : DebugInformation {
 
 		string url;
 
-		byte type;
-		byte hash_algorithm;
-		byte language;
-		byte language_vendor;
+		Guid type;
+		Guid hash_algorithm;
+		Guid language;
+		Guid language_vendor;
 
 		byte [] hash;
+		byte [] embedded_source;
 
 		public string Url {
 			get { return url; }
@@ -79,23 +63,43 @@ namespace Mono.Cecil.Cil {
 		}
 
 		public DocumentType Type {
-			get { return (DocumentType) type; }
-			set { type = (byte) value; }
+			get { return type.ToType (); }
+			set { type = value.ToGuid (); }
+		}
+
+		public Guid TypeGuid {
+			get { return type; }
+			set { type = value; }
 		}
 
 		public DocumentHashAlgorithm HashAlgorithm {
-			get { return (DocumentHashAlgorithm) hash_algorithm; }
-			set { hash_algorithm = (byte) value; }
+			get { return hash_algorithm.ToHashAlgorithm (); }
+			set { hash_algorithm = value.ToGuid (); }
+		}
+
+		public Guid HashAlgorithmGuid {
+			get { return hash_algorithm; }
+			set { hash_algorithm = value; }
 		}
 
 		public DocumentLanguage Language {
-			get { return (DocumentLanguage) language; }
-			set { language = (byte) value; }
+			get { return language.ToLanguage (); }
+			set { language = value.ToGuid (); }
+		}
+
+		public Guid LanguageGuid {
+			get { return language; }
+			set { language = value; }
 		}
 
 		public DocumentLanguageVendor LanguageVendor {
-			get { return (DocumentLanguageVendor) language_vendor; }
-			set { language_vendor = (byte) value; }
+			get { return language_vendor.ToVendor (); }
+			set { language_vendor = value.ToGuid (); }
+		}
+
+		public Guid LanguageVendorGuid {
+			get { return language_vendor; }
+			set { language_vendor = value; }
 		}
 
 		public byte [] Hash {
@@ -103,10 +107,17 @@ namespace Mono.Cecil.Cil {
 			set { hash = value; }
 		}
 
+		public byte[] EmbeddedSource {
+			get { return embedded_source; }
+			set { embedded_source = value; }
+		}
+
 		public Document (string url)
 		{
 			this.url = url;
 			this.hash = Empty<byte>.Array;
+			this.embedded_source = Empty<byte>.Array;
+			this.token = new MetadataToken (TokenType.Document);
 		}
 	}
 }

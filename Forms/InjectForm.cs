@@ -1,4 +1,4 @@
-﻿/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+﻿/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -19,8 +19,6 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#region Imports
-
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -30,20 +28,16 @@ using Reflexil.Editors;
 using Reflexil.Plugins;
 using Reflexil.Utils;
 
-#endregion
-
 namespace Reflexil.Forms
 {
 	public partial class InjectForm : Form
 	{
-		#region Properties
-
 		public InjectType TargetType
 		{
 			get
 			{
 				if (ItemType.SelectedIndex >= 0)
-					return (InjectType) ItemType.SelectedItem;
+					return (InjectType)ItemType.SelectedItem;
 
 				throw new ArgumentException();
 			}
@@ -54,58 +48,24 @@ namespace Reflexil.Forms
 			}
 		}
 
-		#endregion
-
-		#region Fields
-
 		private readonly Dictionary<object, InjectType[]> _mappings;
 		private readonly List<InjectType> _extraTypeSupported;
-
-		#endregion
-
-		#region Methods
 
 		public InjectForm()
 		{
 			InitializeComponent();
 			_mappings = new Dictionary<object, InjectType[]>();
 			_extraTypeSupported = new List<InjectType>();
-			_extraTypeSupported.AddRange(new[]
-			{
-				InjectType.Class,
-				InjectType.Property,
-				InjectType.Field,
-				InjectType.Event,
-				InjectType.Resource
-			});
+			_extraTypeSupported.AddRange(new[] {InjectType.Class, InjectType.Property, InjectType.Field, InjectType.Event, InjectType.Resource});
 
 			var ade = new AssemblyDefinitionEditor();
-			var adetypes = new[]
-			{
-				InjectType.Class,
-				InjectType.Interface,
-				InjectType.Struct,
-				InjectType.Enum,
-				InjectType.AssemblyReference,
-				InjectType.Resource
-			};
+			var adetypes = new[] {InjectType.Class, InjectType.Interface, InjectType.Struct, InjectType.Enum, InjectType.AssemblyReference, InjectType.Resource};
 
 			_mappings.Add(ade, adetypes);
 			OwnerType.Items.Add(ade);
 
 			var tde = new TypeDefinitionEditor();
-			var tdetypes = new[]
-			{
-				InjectType.Class,
-				InjectType.Interface,
-				InjectType.Struct,
-				InjectType.Enum,
-				InjectType.Constructor,
-				InjectType.Method,
-				InjectType.Property,
-				InjectType.Field,
-				InjectType.Event
-			};
+			var tdetypes = new[] {InjectType.Class, InjectType.Interface, InjectType.Struct, InjectType.Enum, InjectType.Constructor, InjectType.Method, InjectType.Property, InjectType.Field, InjectType.Event};
 
 			_mappings.Add(tde, tdetypes);
 			OwnerType.Items.Add(tde);
@@ -142,36 +102,37 @@ namespace Reflexil.Forms
 					return;
 
 				OwnerType.SelectedItem = tde;
-				tde.SelectedOperand = mref.DeclaringType as TypeDefinition;
+				tde.SelectedOperand = (TypeDefinition)mref.DeclaringType;
 			}
 		}
 
 		private void OwnerType_SelectedIndexChanged(object sender, EventArgs e)
 		{
 			OwnerPanel.Controls.Clear();
-			OwnerPanel.Controls.Add((Control) OwnerType.SelectedItem);
+			OwnerPanel.Controls.Add((Control)OwnerType.SelectedItem);
 			if (_mappings.ContainsKey(OwnerType.SelectedItem))
 			{
 				ItemType.DataSource = _mappings[OwnerType.SelectedItem];
 				ItemType.SelectedIndex = 0;
 			}
+
 			InjectContextChanged(sender, e);
 		}
 
 		private void InjectContextChanged(object sender, EventArgs e)
 		{
-			var editor = (IOperandEditor) OwnerType.SelectedItem;
+			var editor = (IOperandEditor)OwnerType.SelectedItem;
 			if (ItemType.SelectedIndex < 0)
 				return;
 
-			var targettype = (InjectType) ItemType.SelectedItem;
+			var targettype = (InjectType)ItemType.SelectedItem;
 
 			ExtraTypePanel.Visible = _extraTypeSupported.Contains(targettype);
 			LabExtraType.Visible = _extraTypeSupported.Contains(targettype);
 			LabExtraType.Text = targettype.ToString().Replace("Interface", "Base").Replace("Class", "Base") + @" type";
 			ItemName.Enabled = targettype != InjectType.Constructor;
 
-			var nameprefix = (editor is AssemblyDefinitionEditor) ? "Namespace.Injected" : "InjectedInner";
+			var nameprefix = editor is AssemblyDefinitionEditor ? "Namespace.Injected" : "InjectedInner";
 			ItemName.Text = @"Injected" + targettype;
 			Type extratype = null;
 
@@ -180,7 +141,7 @@ namespace Reflexil.Forms
 				case InjectType.Class:
 				case InjectType.Interface:
 					ItemName.Text = string.Concat(nameprefix, targettype.ToString());
-					extratype = typeof (object);
+					extratype = typeof(object);
 					break;
 				case InjectType.Enum:
 				case InjectType.Struct:
@@ -188,10 +149,10 @@ namespace Reflexil.Forms
 					break;
 				case InjectType.Property:
 				case InjectType.Field:
-					extratype = typeof (int);
+					extratype = typeof(int);
 					break;
 				case InjectType.Event:
-					extratype = typeof (EventHandler);
+					extratype = typeof(EventHandler);
 					break;
 				case InjectType.AssemblyReference:
 					ItemName.Text = @"System.Windows.Forms";
@@ -200,7 +161,7 @@ namespace Reflexil.Forms
 					ItemName.Text = @".ctor";
 					break;
 				case InjectType.Resource:
-					extratype = typeof (ResourceType);
+					extratype = typeof(ResourceType);
 					break;
 			}
 
@@ -222,17 +183,17 @@ namespace Reflexil.Forms
 				{
 					ExtraType.Visible = true;
 					ExtraTypeList.Visible = false;
-					if (editor is AssemblyDefinitionEditor)
+					var assemblyDefinitionEditor = editor as AssemblyDefinitionEditor;
+					if (assemblyDefinitionEditor != null)
 					{
-						var aeditor = (editor as AssemblyDefinitionEditor);
-						if (aeditor.SelectedOperand != null)
+						if (assemblyDefinitionEditor.SelectedOperand != null)
 						{
-							ExtraType.SelectedOperand = LookupTypeReference(aeditor.SelectedOperand.MainModule, extratype);
+							ExtraType.SelectedOperand = LookupTypeReference(assemblyDefinitionEditor.SelectedOperand.MainModule, extratype);
 						}
 					}
 					else
 					{
-						var teditor = (editor as TypeDefinitionEditor);
+						var teditor = editor as TypeDefinitionEditor;
 						if (teditor != null && teditor.SelectedOperand != null)
 						{
 							ExtraType.SelectedOperand = LookupTypeReference(teditor.SelectedOperand.Module, extratype);
@@ -242,10 +203,10 @@ namespace Reflexil.Forms
 			}
 		}
 
-		private TypeReference LookupTypeReference(ModuleDefinition module, Type type)
+		private static TypeReference LookupTypeReference(ModuleDefinition module, Type type)
 		{
 			// Do not use import, we do not want to reference additional assemblies
-			if (type == typeof (object))
+			if (type == typeof(object))
 				return module.TypeSystem.Object;
 
 			if (type == typeof(int))
@@ -259,7 +220,7 @@ namespace Reflexil.Forms
 
 		private void Ok_Click(object sender, EventArgs e)
 		{
-			var editor = (IOperandEditor) OwnerType.SelectedItem;
+			var editor = (IOperandEditor)OwnerType.SelectedItem;
 			if (editor == null)
 				return;
 
@@ -284,7 +245,5 @@ namespace Reflexil.Forms
 		{
 			InjectContextChanged(sender, e);
 		}
-
-		#endregion
 	}
 }

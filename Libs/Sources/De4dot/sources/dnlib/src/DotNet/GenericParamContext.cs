@@ -1,31 +1,10 @@
-﻿/*
-    Copyright (C) 2012-2014 de4dot@gmail.com
-
-    Permission is hereby granted, free of charge, to any person obtaining
-    a copy of this software and associated documentation files (the
-    "Software"), to deal in the Software without restriction, including
-    without limitation the rights to use, copy, modify, merge, publish,
-    distribute, sublicense, and/or sell copies of the Software, and to
-    permit persons to whom the Software is furnished to do so, subject to
-    the following conditions:
-
-    The above copyright notice and this permission notice shall be
-    included in all copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/
+// dnlib: See LICENSE.txt for more info
 
 namespace dnlib.DotNet {
 	/// <summary>
 	/// Generic parameter context
 	/// </summary>
-	public struct GenericParamContext {
+	public readonly struct GenericParamContext {
 		/// <summary>
 		/// Type context
 		/// </summary>
@@ -35,6 +14,11 @@ namespace dnlib.DotNet {
 		/// Method context
 		/// </summary>
 		public readonly MethodDef Method;
+
+		/// <summary>
+		/// true if <see cref="Type"/> and <see cref="Method"/> are both <c>null</c>
+		/// </summary>
+		public bool IsEmpty => Type == null && Method == null;
 
 		/// <summary>
 		/// Creates a new <see cref="GenericParamContext"/> instance and initializes the
@@ -56,17 +40,15 @@ namespace dnlib.DotNet {
 		/// </summary>
 		/// <param name="type">Type</param>
 		/// <returns>A new <see cref="GenericParamContext"/> instance</returns>
-		public static GenericParamContext Create(TypeDef type) {
-			return new GenericParamContext(type);
-		}
+		public static GenericParamContext Create(TypeDef type) => new GenericParamContext(type);
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="type">Type context</param>
 		public GenericParamContext(TypeDef type) {
-			this.Type = type;
-			this.Method = null;
+			Type = type;
+			Method = null;
 		}
 
 		/// <summary>
@@ -76,8 +58,8 @@ namespace dnlib.DotNet {
 		/// </summary>
 		/// <param name="method">Method context</param>
 		public GenericParamContext(MethodDef method) {
-			this.Type = null;
-			this.Method = method;
+			Type = null;
+			Method = method;
 		}
 
 		/// <summary>
@@ -86,8 +68,8 @@ namespace dnlib.DotNet {
 		/// <param name="type">Type context</param>
 		/// <param name="method">Method context</param>
 		public GenericParamContext(TypeDef type, MethodDef method) {
-			this.Type = type;
-			this.Method = method;
+			Type = type;
+			Method = method;
 		}
 	}
 }

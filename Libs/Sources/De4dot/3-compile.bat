@@ -1,5 +1,6 @@
 @echo off
 
-set PATH=.\tools;%WINDIR%\Microsoft.NET\Framework\v4.0.30319;%PATH%
+set PATH=.\tools;%PATH%
 
-msbuild sources\de4dot.sln /p:Configuration=Release;TargetFrameworkVersion=v3.5
+nuget restore sources\de4dot.netframework.sln
+msbuild sources\de4dot.netframework.sln /p:Configuration=Release,GenerateAssemblyInfo=false

@@ -1,28 +1,7 @@
-/*
-    Copyright (C) 2012-2014 de4dot@gmail.com
+// dnlib: See LICENSE.txt for more info
 
-    Permission is hereby granted, free of charge, to any person obtaining
-    a copy of this software and associated documentation files (the
-    "Software"), to deal in the Software without restriction, including
-    without limitation the rights to use, copy, modify, merge, publish,
-    distribute, sublicense, and/or sell copies of the Software, and to
-    permit persons to whom the Software is furnished to do so, subject to
-    the following conditions:
-
-    The above copyright notice and this permission notice shall be
-    included in all copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/
-
-﻿using System;
-using dnlib.Utils;
+using System;
+using System.Diagnostics;
 using dnlib.DotNet.MD;
 
 namespace dnlib.DotNet {
@@ -36,22 +15,20 @@ namespace dnlib.DotNet {
 		protected uint rid;
 
 		/// <inheritdoc/>
-		public MDToken MDToken {
-			get { return new MDToken(Table.ClassLayout, rid); }
-		}
+		public MDToken MDToken => new MDToken(Table.ClassLayout, rid);
 
 		/// <inheritdoc/>
 		public uint Rid {
-			get { return rid; }
-			set { rid = value; }
+			get => rid;
+			set => rid = value;
 		}
 
 		/// <summary>
 		/// From column ClassLayout.PackingSize
 		/// </summary>
 		public ushort PackingSize {
-			get { return packingSize; }
-			set { packingSize = value; }
+			get => packingSize;
+			set => packingSize = value;
 		}
 		/// <summary/>
 		protected ushort packingSize;
@@ -60,8 +37,8 @@ namespace dnlib.DotNet {
 		/// From column ClassLayout.ClassSize
 		/// </summary>
 		public uint ClassSize {
-			get { return classSize; }
-			set { classSize = value; }
+			get => classSize;
+			set => classSize = value;
 		}
 		/// <summary/>
 		protected uint classSize;
@@ -92,15 +69,10 @@ namespace dnlib.DotNet {
 	/// Created from a row in the ClassLayout table
 	/// </summary>
 	sealed class ClassLayoutMD : ClassLayout, IMDTokenProviderMD {
-		/// <summary>The module where this instance is located</summary>
-		readonly ModuleDefMD readerModule;
-
 		readonly uint origRid;
 
 		/// <inheritdoc/>
-		public uint OrigRid {
-			get { return origRid; }
-		}
+		public uint OrigRid => origRid;
 
 		/// <summary>
 		/// Constructor
@@ -114,12 +86,14 @@ namespace dnlib.DotNet {
 			if (readerModule == null)
 				throw new ArgumentNullException("readerModule");
 			if (readerModule.TablesStream.ClassLayoutTable.IsInvalidRID(rid))
-				throw new BadImageFormatException(string.Format("ClassLayout rid {0} does not exist", rid));
+				throw new BadImageFormatException($"ClassLayout rid {rid} does not exist");
 #endif
-			this.origRid = rid;
+			origRid = rid;
 			this.rid = rid;
-			this.readerModule = readerModule;
-			this.classSize = readerModule.TablesStream.ReadClassLayoutRow(origRid, out this.packingSize);
+			bool b = readerModule.TablesStream.TryReadClassLayoutRow(origRid, out var row);
+			Debug.Assert(b);
+			classSize = row.ClassSize;
+			packingSize = row.PackingSize;
 		}
 	}
 }

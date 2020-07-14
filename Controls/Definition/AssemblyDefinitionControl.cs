@@ -1,4 +1,4 @@
-﻿/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+﻿/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -19,25 +19,15 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#region Imports
-
 using System;
 using System.Windows.Forms;
 using Mono.Cecil;
-
-#endregion
 
 namespace Reflexil.Editors
 {
 	public partial class AssemblyDefinitionControl : UserControl
 	{
-		#region Fields
-
 		private bool _readonly;
-
-		#endregion
-
-		#region Properties
 
 		public bool ReadOnly
 		{
@@ -50,10 +40,6 @@ namespace Reflexil.Editors
 		}
 
 		public AssemblyDefinition Item { get; set; }
-
-		#endregion
-
-		#region Events
 
 		private void ResetEntryPoint_Click(object sender, EventArgs e)
 		{
@@ -69,23 +55,12 @@ namespace Reflexil.Editors
 				Item.EntryPoint = MethodDefinitionEditor.SelectedOperand;
 		}
 
-		#endregion
-
-		#region Methods
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
 		public AssemblyDefinitionControl()
 		{
 			InitializeComponent();
 			MethodDefinitionEditor.Dock = DockStyle.None;
 		}
 
-		/// <summary>
-		/// Bind an AssemblyDefinition to this control
-		/// </summary>
-		/// <param name="item">AssemblyDefinition to bind</param>
 		public virtual void Bind(AssemblyDefinition item)
 		{
 			Item = item;
@@ -109,7 +84,5 @@ namespace Reflexil.Editors
 				Enabled = (item != null);
 			}
 		}
-
-		#endregion
 	}
 }

@@ -1,28 +1,8 @@
-/*
-    Copyright (C) 2012-2014 de4dot@gmail.com
+// dnlib: See LICENSE.txt for more info
 
-    Permission is hereby granted, free of charge, to any person obtaining
-    a copy of this software and associated documentation files (the
-    "Software"), to deal in the Software without restriction, including
-    without limitation the rights to use, copy, modify, merge, publish,
-    distribute, sublicense, and/or sell copies of the Software, and to
-    permit persons to whom the Software is furnished to do so, subject to
-    the following conditions:
-
-    The above copyright notice and this permission notice shall be
-    included in all copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/
-
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Text;
 using dnlib.Threading;
 
 namespace dnlib.DotNet {
@@ -36,6 +16,7 @@ namespace dnlib.DotNet {
 		Dictionary<ITypeDefOrRef, TypeDef> typeRefCache = new Dictionary<ITypeDefOrRef, TypeDef>(new TypeEqualityComparer(TypeComparerOptions));
 		Dictionary<string, TypeDef> normalNameCache = new Dictionary<string, TypeDef>(StringComparer.Ordinal);
 		Dictionary<string, TypeDef> reflectionNameCache = new Dictionary<string, TypeDef>(StringComparer.Ordinal);
+		readonly StringBuilder sb = new StringBuilder();
 		IEnumerator<TypeDef> typeEnumerator;
 		readonly IEnumerable<TypeDef> rootTypes;
 #if THREAD_SAFE
@@ -68,7 +49,7 @@ namespace dnlib.DotNet {
 		}
 
 		bool IsCacheEnabled_NoLock {
-			get { return isCacheEnabled; }
+			get => isCacheEnabled;
 			set {
 				if (isCacheEnabled == value)
 					return;
@@ -106,9 +87,7 @@ namespace dnlib.DotNet {
 		/// from <paramref name="rootTypes"/> should also be included.</param>
 		/// <exception cref="ArgumentNullException">If <paramref name="rootTypes"/> is <c>null</c></exception>
 		public TypeDefFinder(IEnumerable<TypeDef> rootTypes, bool includeNestedTypes) {
-			if (rootTypes == null)
-				throw new ArgumentNullException("rootTypes");
-			this.rootTypes = rootTypes;
+			this.rootTypes = rootTypes ?? throw new ArgumentNullException(nameof(rootTypes));
 			this.includeNestedTypes = includeNestedTypes;
 		}
 
@@ -165,8 +144,7 @@ namespace dnlib.DotNet {
 		}
 
 		TypeDef FindCache(TypeRef typeRef) {
-			TypeDef cachedType;
-			if (typeRefCache.TryGetValue(typeRef, out cachedType))
+			if (typeRefCache.TryGetValue(typeRef, out var cachedType))
 				return cachedType;
 
 			// Build the cache lazily
@@ -179,27 +157,31 @@ namespace dnlib.DotNet {
 		}
 
 		TypeDef FindCacheReflection(string fullName) {
-			TypeDef cachedType;
-			if (reflectionNameCache.TryGetValue(fullName, out cachedType))
+			if (reflectionNameCache.TryGetValue(fullName, out var cachedType))
 				return cachedType;
 
 			// Build the cache lazily
 			while (true) {
 				cachedType = GetNextTypeDefCache();
-				if (cachedType == null || cachedType.ReflectionFullName == fullName)
+				if (cachedType == null)
+					return cachedType;
+				sb.Length = 0;
+				if (FullNameFactory.FullName(cachedType, true, null, sb) == fullName)
 					return cachedType;
 			}
 		}
 
 		TypeDef FindCacheNormal(string fullName) {
-			TypeDef cachedType;
-			if (normalNameCache.TryGetValue(fullName, out cachedType))
+			if (normalNameCache.TryGetValue(fullName, out var cachedType))
 				return cachedType;
 
 			// Build the cache lazily
 			while (true) {
 				cachedType = GetNextTypeDefCache();
-				if (cachedType == null || cachedType.FullName == fullName)
+				if (cachedType == null)
+					return cachedType;
+				sb.Length = 0;
+				if (FullNameFactory.FullName(cachedType, false, null, sb) == fullName)
 					return cachedType;
 			}
 		}
@@ -218,7 +200,10 @@ namespace dnlib.DotNet {
 			InitializeTypeEnumerator();
 			while (true) {
 				var type = GetNextTypeDef();
-				if (type == null || type.ReflectionFullName == fullName)
+				if (type == null)
+					return type;
+				sb.Length = 0;
+				if (FullNameFactory.FullName(type, true, null, sb) == fullName)
 					return type;
 			}
 		}
@@ -227,7 +212,10 @@ namespace dnlib.DotNet {
 			InitializeTypeEnumerator();
 			while (true) {
 				var type = GetNextTypeDef();
-				if (type == null || type.FullName == fullName)
+				if (type == null)
+					return type;
+				sb.Length = 0;
+				if (FullNameFactory.FullName(type, false, null, sb) == fullName)
 					return type;
 			}
 		}
@@ -262,9 +250,11 @@ namespace dnlib.DotNet {
 			if (!typeRefCache.ContainsKey(type))
 				typeRefCache[type] = type;
 			string fn;
-			if (!normalNameCache.ContainsKey(fn = type.FullName))
+			sb.Length = 0;
+			if (!normalNameCache.ContainsKey(fn = FullNameFactory.FullName(type, false, null, sb)))
 				normalNameCache[fn] = type;
-			if (!reflectionNameCache.ContainsKey(fn = type.ReflectionFullName))
+			sb.Length = 0;
+			if (!reflectionNameCache.ContainsKey(fn = FullNameFactory.FullName(type, true, null, sb)))
 				reflectionNameCache[fn] = type;
 
 			return type;

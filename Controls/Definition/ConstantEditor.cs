@@ -1,4 +1,4 @@
-/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -19,44 +19,32 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#region Imports
-
 using System;
 using System.Windows.Forms;
 using Mono.Cecil;
-
-#endregion
 
 namespace Reflexil.Editors
 {
 	public partial class ConstantEditor : UserControl
 	{
-		#region Events
-
 		protected virtual void ConstantTypes_SelectedIndexChanged(object sender, EventArgs e)
 		{
 			ConstantPanel.Controls.Clear();
-			ConstantPanel.Controls.Add((Control) ConstantTypes.SelectedItem);
-			((IOperandEditor) ConstantTypes.SelectedItem).Initialize(null);
+			ConstantPanel.Controls.Add((Control)ConstantTypes.SelectedItem);
+			((IOperandEditor)ConstantTypes.SelectedItem).Refresh(null);
 		}
-
-		#endregion
-
-		#region Methods
 
 		public void Reset()
 		{
 			if (ConstantTypes.Items.Count > 0)
-			{
 				ConstantTypes.SelectedItem = ConstantTypes.Items[0];
-			}
 		}
 
 		public void CopyStateTo(IConstantProvider item)
 		{
 			if (ConstantTypes.SelectedItem != null)
 			{
-				var editor = (IOperandEditor) ConstantTypes.SelectedItem;
+				var editor = (IOperandEditor)ConstantTypes.SelectedItem;
 				item.Constant = editor.SelectedOperand;
 				item.HasConstant = !(editor is NoneOperandEditor);
 			}
@@ -74,20 +62,18 @@ namespace Reflexil.Editors
 				if (item.Constant == null)
 				{
 					if (ConstantTypes.Items.Count > 1)
-					{
 						ConstantTypes.SelectedItem = ConstantTypes.Items[1];
-					}
 				}
 				else
 				{
 					foreach (IOperandEditor editor in ConstantTypes.Items)
 					{
-						if (editor.IsOperandHandled(item.Constant))
-						{
-							ConstantTypes.SelectedItem = editor;
-							editor.SelectedOperand = item.Constant;
-							return;
-						}
+						if (!editor.IsOperandHandled(item.Constant))
+							continue;
+
+						ConstantTypes.SelectedItem = editor;
+						editor.SelectedOperand = item.Constant;
+						return;
 					}
 				}
 			}
@@ -106,16 +92,21 @@ namespace Reflexil.Editors
 
 			ConstantTypes.Items.Add(new NoneOperandEditor());
 			ConstantTypes.Items.Add(new NullOperandEditor());
+			ConstantTypes.Items.Add(new BooleanEditor());
 			ConstantTypes.Items.Add(new ByteEditor());
 			ConstantTypes.Items.Add(new SByteEditor());
+			ConstantTypes.Items.Add(new ShortEditor());
+			ConstantTypes.Items.Add(new UShortEditor());
 			ConstantTypes.Items.Add(new IntegerEditor());
+			ConstantTypes.Items.Add(new UIntegerEditor());
 			ConstantTypes.Items.Add(new LongEditor());
+			ConstantTypes.Items.Add(new ULongEditor());
 			ConstantTypes.Items.Add(new SingleEditor());
 			ConstantTypes.Items.Add(new DoubleEditor());
 
 			var stringEditor = new StringEditor();
 			var verbatimStringEditor = new VerbatimStringEditor();
-			var bridge = new GenericOperandEditorBridge<string>(stringEditor, verbatimStringEditor);
+			var bridge = new OperandEditorBridge<string>(stringEditor, verbatimStringEditor);
 			Disposed += delegate { bridge.Dispose(); };
 
 			ConstantTypes.Items.Add(stringEditor);
@@ -123,7 +114,5 @@ namespace Reflexil.Editors
 
 			ConstantTypes.SelectedIndex = 0;
 		}
-
-		#endregion
 	}
 }

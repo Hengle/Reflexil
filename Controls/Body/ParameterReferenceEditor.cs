@@ -1,4 +1,4 @@
-/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -19,13 +19,9 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#region Imports
-
 using System.Collections;
 using Mono.Cecil;
 using Reflexil.Wrappers;
-
-#endregion
 
 namespace Reflexil.Editors
 {
@@ -40,9 +36,7 @@ namespace Reflexil.Editors
 		}
 	}
 
-	#region VS Designer generic support
-
-	public class BaseParameterReferenceEditor : GenericOperandReferenceEditor<ParameterDefinition, ParameterWrapper>
+	public class BaseParameterReferenceEditor : OperandReferenceEditor<ParameterDefinition, ParameterWrapper>
 	{
 		public BaseParameterReferenceEditor()
 		{
@@ -53,6 +47,4 @@ namespace Reflexil.Editors
 		{
 		}
 	}
-
-	#endregion
 }

@@ -1,4 +1,4 @@
-/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -19,20 +19,14 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#region Imports
-
 using System.ComponentModel;
 using System.Windows.Forms;
 using Mono.Cecil;
-
-#endregion
 
 namespace Reflexil.Forms
 {
 	public partial class OverrideForm : Form
 	{
-		#region Properties
-
 		public MethodDefinition MethodDefinition { get; private set; }
 		public MethodReference SelectedMethodReference { get; private set; }
 
@@ -45,13 +39,10 @@ namespace Reflexil.Forms
 					ctl.Focus();
 					if (!Validate()) return false;
 				}
+
 				return true;
 			}
 		}
-
-		#endregion
-
-		#region Methods
 
 		public OverrideForm()
 		{
@@ -66,10 +57,6 @@ namespace Reflexil.Forms
 			return ShowDialog();
 		}
 
-		#endregion
-
-		#region Events
-
 		private void MethodReferenceEditor_Validating(object sender, CancelEventArgs e)
 		{
 			if (MethodReferenceEditor.SelectedOperand == null)
@@ -82,7 +69,5 @@ namespace Reflexil.Forms
 				ErrorProvider.SetError(MethodReferenceEditor, string.Empty);
 			}
 		}
-
-		#endregion
 	}
 }

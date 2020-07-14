@@ -1,4 +1,4 @@
-/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -19,47 +19,40 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#region Imports
-
 using System;
 using System.Windows.Forms;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Reflexil.Editors;
 
-#endregion
-
 namespace Reflexil.Forms
 {
 	public partial class EditInstructionForm
 	{
-		#region Events
-
-		private void ButUpdate_Click(Object sender, EventArgs e)
+		private void ButUpdate_Click(object sender, EventArgs e)
 		{
 			var newins = CreateInstruction();
-			if (newins != null)
-				MethodDefinition.Body.GetILProcessor().Replace(SelectedInstruction, newins);
+			if (newins == null)
+				return;
+
+			MethodDefinition.Body.GetILProcessor().Replace(SelectedInstruction, newins);
+			DialogResult = DialogResult.OK;
 		}
 
 		protected override void Operands_SelectedIndexChanged(object sender, EventArgs e)
 		{
 			base.Operands_SelectedIndexChanged(sender, e);
 			if (MethodDefinition != null)
-				ButUpdate.Enabled = (SelectedInstruction != null) && ! ((Operands.SelectedItem) is NotSupportedOperandEditor);
+				ButUpdate.Enabled = (SelectedInstruction != null) && !((Operands.SelectedItem) is NotSupportedOperandEditor);
 		}
 
-		private void EditForm_Load(Object sender, EventArgs e)
+		private void EditForm_Load(object sender, EventArgs e)
 		{
 			Operands_SelectedIndexChanged(this, EventArgs.Empty);
 			OpCodes_SelectedIndexChanged(this, EventArgs.Empty);
 			if ((SelectedInstruction != null) && (SelectedInstruction.Operand != null))
-				((IOperandEditor) Operands.SelectedItem).SelectedOperand = SelectedInstruction.Operand;
+				((IOperandEditor)Operands.SelectedItem).SelectedOperand = SelectedInstruction.Operand;
 		}
-
-		#endregion
-
-		#region Methods
 
 		public EditInstructionForm()
 		{
@@ -84,12 +77,11 @@ namespace Reflexil.Forms
 					Operands_SelectedIndexChanged(this, EventArgs.Empty);
 					break;
 				}
+
 				OpCodes.SelectedItem = selected.OpCode;
 			}
 
 			return base.ShowDialog(mdef, selected);
 		}
-
-		#endregion
 	}
 }

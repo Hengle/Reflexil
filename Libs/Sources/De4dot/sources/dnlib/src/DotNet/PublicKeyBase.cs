@@ -1,27 +1,8 @@
-/*
-    Copyright (C) 2012-2014 de4dot@gmail.com
+// dnlib: See LICENSE.txt for more info
 
-    Permission is hereby granted, free of charge, to any person obtaining
-    a copy of this software and associated documentation files (the
-    "Software"), to deal in the Software without restriction, including
-    without limitation the rights to use, copy, modify, merge, publish,
-    distribute, sublicense, and/or sell copies of the Software, and to
-    permit persons to whom the Software is furnished to do so, subject to
-    the following conditions:
+using System;
 
-    The above copyright notice and this permission notice shall be
-    included in all copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/
-
-﻿namespace dnlib.DotNet {
+namespace dnlib.DotNet {
 	/// <summary>
 	/// Public key / public key token base class
 	/// </summary>
@@ -29,36 +10,22 @@
 		/// <summary>
 		/// The key data
 		/// </summary>
-		protected byte[] data;
+		protected readonly byte[] data;
 
 		/// <summary>
 		/// Returns <c>true</c> if <see cref="Data"/> is <c>null</c> or empty
 		/// </summary>
-		public bool IsNullOrEmpty {
-			get { return IsNullOrEmpty_NoLock; }
-		}
-
-		/// <summary>
-		/// The unlocked version of <see cref="IsNullOrEmpty"/>.
-		/// </summary>
-		protected bool IsNullOrEmpty_NoLock {
-			get { return data == null || data.Length == 0; }
-		}
+		public bool IsNullOrEmpty => data == null || data.Length == 0;
 
 		/// <summary>
 		/// Returns <c>true</c> if <see cref="Data"/> is <c>null</c>
 		/// </summary>
-		public bool IsNull {
-			get { return Data == null; }
-		}
+		public bool IsNull => Data == null;
 
 		/// <summary>
 		/// Gets/sets key data
 		/// </summary>
-		public virtual byte[] Data {
-			get { return data; }
-			set { data = value; }
-		}
+		public virtual byte[] Data => data;
 
 		/// <summary>
 		/// Gets the <see cref="PublicKeyToken"/>
@@ -66,27 +33,17 @@
 		public abstract PublicKeyToken Token { get; }
 
 		/// <summary>
-		/// Default constructor
-		/// </summary>
-		protected PublicKeyBase() {
-		}
-
-		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="data">Key data</param>
-		protected PublicKeyBase(byte[] data) {
-			this.data = data;
-		}
+		protected PublicKeyBase(byte[] data) => this.data = data;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="hexString">Key data as a hex string or the string <c>"null"</c>
 		/// to set key data to <c>null</c></param>
-		protected PublicKeyBase(string hexString) {
-			this.data = Parse(hexString);
-		}
+		protected PublicKeyBase(string hexString) => data = Parse(hexString);
 
 		static byte[] Parse(string hexString) {
 			if (hexString == null || hexString == "null")
@@ -98,20 +55,16 @@
 		/// Checks whether a public key or token is null or empty
 		/// </summary>
 		/// <param name="a">Public key or token instance</param>
-		public static bool IsNullOrEmpty2(PublicKeyBase a) {
-			return a == null || a.IsNullOrEmpty;
-		}
+		public static bool IsNullOrEmpty2(PublicKeyBase a) => a == null || a.IsNullOrEmpty;
 
 		/// <summary>
 		/// Returns a <see cref="PublicKeyToken"/>
 		/// </summary>
 		/// <param name="pkb">A <see cref="PublicKey"/> or a <see cref="PublicKeyToken"/> instance</param>
 		public static PublicKeyToken ToPublicKeyToken(PublicKeyBase pkb) {
-			var pkt = pkb as PublicKeyToken;
-			if (pkt != null)
+			if (pkb is PublicKeyToken pkt)
 				return pkt;
-			var pk = pkb as PublicKey;
-			if (pk != null)
+			if (pkb is PublicKey pk)
 				return pk.Token;
 			return null;
 		}
@@ -134,11 +87,9 @@
 		/// <param name="a">First</param>
 		/// <param name="b">Second</param>
 		/// <returns><c>true</c> if same, <c>false</c> otherwise</returns>
-		public static bool TokenEquals(PublicKeyBase a, PublicKeyBase b) {
-			return TokenCompareTo(a, b) == 0;
-		}
+		public static bool TokenEquals(PublicKeyBase a, PublicKeyBase b) => TokenCompareTo(a, b) == 0;
 
-		static readonly byte[] EmptyByteArray = new byte[0];
+		static readonly byte[] EmptyByteArray = Array2.Empty<byte>();
 		/// <summary>
 		/// Compares two <see cref="PublicKeyToken"/>s
 		/// </summary>
@@ -148,12 +99,10 @@
 		public static int TokenCompareTo(PublicKeyToken a, PublicKeyToken b) {
 			if (a == b)
 				return 0;
-			return TokenCompareTo(a == null ? null : a.Data, b == null ? null : b.Data);
+			return TokenCompareTo(a?.Data, b?.Data);
 		}
 
-		static int TokenCompareTo(byte[] a, byte[] b) {
-			return Utils.CompareTo(a ?? EmptyByteArray, b ?? EmptyByteArray);
-		}
+		static int TokenCompareTo(byte[] a, byte[] b) => Utils.CompareTo(a ?? EmptyByteArray, b ?? EmptyByteArray);
 
 		/// <summary>
 		/// Checks whether two public key tokens are equal
@@ -161,18 +110,14 @@
 		/// <param name="a">First</param>
 		/// <param name="b">Second</param>
 		/// <returns><c>true</c> if same, <c>false</c> otherwise</returns>
-		public static bool TokenEquals(PublicKeyToken a, PublicKeyToken b) {
-			return TokenCompareTo(a, b) == 0;
-		}
+		public static bool TokenEquals(PublicKeyToken a, PublicKeyToken b) => TokenCompareTo(a, b) == 0;
 
 		/// <summary>
 		/// Gets the public key token hash code
 		/// </summary>
 		/// <param name="a">Public key or token</param>
 		/// <returns>The hash code</returns>
-		public static int GetHashCodeToken(PublicKeyBase a) {
-			return GetHashCode(ToPublicKeyToken(a));
-		}
+		public static int GetHashCodeToken(PublicKeyBase a) => GetHashCode(ToPublicKeyToken(a));
 
 		/// <summary>
 		/// Gets the public key token hash code

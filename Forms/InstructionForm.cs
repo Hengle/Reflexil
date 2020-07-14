@@ -1,4 +1,4 @@
-/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -19,8 +19,6 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#region Imports
-
 using System;
 using System.Windows.Forms;
 using Mono.Cecil;
@@ -29,28 +27,20 @@ using Reflexil.Editors;
 using Reflexil.Wrappers;
 using Reflexil.Plugins;
 
-#endregion
-
 namespace Reflexil.Forms
 {
 	public partial class InstructionForm
 	{
-		#region Properties
-
 		public MethodDefinition MethodDefinition { get; private set; }
 		public Instruction SelectedInstruction { get; private set; }
-
-		#endregion
-
-		#region Events
 
 		protected virtual void Operands_SelectedIndexChanged(object sender, EventArgs e)
 		{
 			OperandPanel.Controls.Clear();
-			OperandPanel.Controls.Add((Control) Operands.SelectedItem);
+			OperandPanel.Controls.Add((Control)Operands.SelectedItem);
 			if (MethodDefinition != null)
 			{
-				((IOperandEditor) Operands.SelectedItem).Initialize(MethodDefinition);
+				((IOperandEditor)Operands.SelectedItem).Refresh(MethodDefinition);
 			}
 		}
 
@@ -58,7 +48,7 @@ namespace Reflexil.Forms
 		{
 			if (OpCodes.SelectedItem != null)
 			{
-				RtbOpCodeDesc.Text = PluginFactory.GetInstance().GetOpcodeDesc((OpCode) OpCodes.SelectedItem);
+				RtbOpCodeDesc.Text = PluginFactory.GetInstance().GetOpcodeDesc((OpCode)OpCodes.SelectedItem);
 			}
 		}
 
@@ -69,10 +59,6 @@ namespace Reflexil.Forms
 				RtbOpCodeDesc.Text = @"Unknown opcode";
 			}
 		}
-
-		#endregion
-
-		#region Methods
 
 		public InstructionForm()
 		{
@@ -94,7 +80,7 @@ namespace Reflexil.Forms
 
 			var stringEditor = new StringEditor();
 			var verbatimStringEditor = new VerbatimStringEditor();
-			var bridge = new GenericOperandEditorBridge<string>(stringEditor, verbatimStringEditor);
+			var bridge = new OperandEditorBridge<string>(stringEditor, verbatimStringEditor);
 			Disposed += delegate { bridge.Dispose(); };
 
 			Operands.Items.Add(stringEditor);
@@ -108,15 +94,15 @@ namespace Reflexil.Forms
 			}
 			else
 			{
-				Operands.Items.Add(new GenericOperandReferenceEditor<Instruction, InstructionWrapper>(null));
+				Operands.Items.Add(new OperandReferenceEditor<Instruction, InstructionWrapper>(null));
 				Operands.Items.Add(new MultipleInstructionReferenceEditor(null));
-				Operands.Items.Add(new GenericOperandReferenceEditor<VariableDefinition, VariableWrapper>(null));
+				Operands.Items.Add(new OperandReferenceEditor<VariableDefinition, VariableWrapper>(null));
 			}
 
 			Operands.Items.Add(new ParameterReferenceEditor(mdef.Parameters));
 			Operands.Items.Add(new FieldReferenceEditor());
 			Operands.Items.Add(new MethodReferenceEditor());
-			Operands.Items.Add(new GenericTypeReferenceEditor());
+			Operands.Items.Add(new GenericParameterEditor());
 			Operands.Items.Add(new TypeReferenceEditor());
 			Operands.Items.Add(new NotSupportedOperandEditor());
 
@@ -136,20 +122,23 @@ namespace Reflexil.Forms
 			{
 				if (OpCodes.SelectedItem != null)
 				{
-					var editor = (IOperandEditor) Operands.SelectedItem;
-					var ins = editor.CreateInstruction(MethodDefinition.Body.GetILProcessor(), ((OpCode) OpCodes.SelectedItem));
-					return ins;
+					var editor = (IInstructionOperandEditor)Operands.SelectedItem;
+					if (editor != null)
+					{
+						var ins = editor.CreateInstruction(MethodDefinition.Body.GetILProcessor(), ((OpCode)OpCodes.SelectedItem));
+						if (ins != null)
+							return ins;
+					}
 				}
+
 				MessageBox.Show(@"Unknown opcode");
 				return null;
 			}
 			catch (Exception)
 			{
-				MessageBox.Show(@"Reflexil is unable to create this instruction, check coherence between the opcode and the operand");
+				MessageBox.Show(@"Reflexil is unable to create this instruction, check opcode/operand consistency");
 				return null;
 			}
 		}
-
-		#endregion
 	}
 }

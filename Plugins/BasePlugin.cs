@@ -1,4 +1,4 @@
-﻿/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+﻿/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -19,20 +19,17 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#region Imports
-
 using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Reflexil.Properties;
 using System.Text;
 using Reflexil.Utils;
-
-#endregion
 
 namespace Reflexil.Plugins
 {
@@ -68,8 +65,8 @@ namespace Reflexil.Plugins
 			Package = package;
 			_allopcodes = new List<OpCode>();
 
-			foreach (var finfo in typeof (OpCodes).GetFields())
-				_allopcodes.Add((OpCode) (finfo.GetValue(null)));
+			foreach (var finfo in typeof(OpCodes).GetFields())
+				_allopcodes.Add((OpCode)(finfo.GetValue(null)));
 
 			_allopcodes.Sort(this);
 			_opcodesdesc = new Dictionary<string, string>();
@@ -93,7 +90,7 @@ namespace Reflexil.Plugins
 
 		public int Compare(OpCode x, OpCode y)
 		{
-			return String.Compare(x.Name, y.Name, StringComparison.Ordinal);
+			return string.Compare(x.Name, y.Name, StringComparison.Ordinal);
 		}
 
 		private void ReloadOpcodesDesc(Stream stream)
@@ -102,7 +99,7 @@ namespace Reflexil.Plugins
 			const string desc = "desc";
 
 			var reader = new StreamReader(stream);
-			var rex = new Regex(String.Format("^(?<{0}>.*)=(?<{1}>.*)$", opcode, desc));
+			var rex = new Regex(string.Format("^(?<{0}>.*)=(?<{1}>.*)$", opcode, desc));
 
 			_opcodesdesc.Clear();
 			while (!reader.EndOfStream)
@@ -139,6 +136,14 @@ namespace Reflexil.Plugins
 				Assemblycache.Remove(location);
 		}
 
+		public void RemoveObsoleteAssemblyContexts(IEnumerable<string> validlocations)
+		{
+			validlocations = validlocations.Select(Environment.ExpandEnvironmentVariables);
+			var obsoleteLocations = Assemblycache.Keys.Where(location => !validlocations.Contains(location)).ToList();
+			foreach (var location in obsoleteLocations)
+				RemoveAssemblyContext(location);
+		}
+
 		public IAssemblyContext ReloadAssemblyContext(string location)
 		{
 			RemoveAssemblyContext(location);
@@ -168,21 +173,16 @@ namespace Reflexil.Plugins
 
 		public virtual AssemblyDefinition LoadAssembly(string location, bool readsymbols)
 		{
-			var parameters = new ReaderParameters { ReadSymbols = readsymbols, ReadingMode = ReadingMode.Deferred };
-			var resolver = new ReflexilAssemblyResolver();
-			try
+			var parameters = new ReaderParameters
 			{
-				return resolver.ReadAssembly(location, parameters);
-			}
-			catch (Exception)
-			{
-				// perhaps pdb file is not found, just ignore this time
-				if (!readsymbols)
-					throw;
-
-				parameters.ReadSymbols = false;
-				return resolver.ReadAssembly(location, parameters);
-			}
+				ReadSymbols = readsymbols,
+				ReadingMode = ReadingMode.Deferred,
+				InMemory = true,
+				ThrowIfSymbolsAreNotMatching = false,
+				SymbolReaderProvider = readsymbols ? new DefaultSymbolReaderProvider(false) : null
+			};
+			var resolver = new ReflexilAssemblyResolver(parameters);
+			return resolver.ReadAssembly(location);
 		}
 
 		public IAssemblyContext GetAssemblyContext<T>(string location) where T : IAssemblyContext, new()
@@ -199,7 +199,8 @@ namespace Reflexil.Plugins
 				{
 					AssemblyHelper.SearchObfuscator(location, true);
 				}
-				AssemblyDefinition asmdef = LoadAssembly(location, ShowSymbols);
+
+				var asmdef = LoadAssembly(location, ShowSymbols);
 				IAssemblyContext context = new T();
 				context.AssemblyDefinition = asmdef;
 				Assemblycache.Add(location, context);
@@ -208,6 +209,7 @@ namespace Reflexil.Plugins
 			{
 				return null;
 			}
+
 			return Assemblycache[location];
 		}
 
@@ -216,6 +218,5 @@ namespace Reflexil.Plugins
 		public abstract TypeDefinition GetTypeDefinition(object item);
 		public abstract ModuleDefinition GetModuleDefinition(object item);
 		public abstract IAssemblyContext GetAssemblyContext(object item);
-
 	}
 }

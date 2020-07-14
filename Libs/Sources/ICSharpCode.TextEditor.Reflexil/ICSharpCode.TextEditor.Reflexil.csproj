@@ -14,7 +14,7 @@
     <RunPostBuildEvent>OnBuildSuccess</RunPostBuildEvent>
     <OutputType>Library</OutputType>
     <SignAssembly>true</SignAssembly>
-    <AssemblyOriginatorKeyFile>..\..\..\Keys\ICSharpCode.TextEditor.snk</AssemblyOriginatorKeyFile>
+    <AssemblyOriginatorKeyFile>..\..\..\Keys\Reflexil.snk</AssemblyOriginatorKeyFile>
     <RootNamespace>ICSharpCode.TextEditor</RootNamespace>
     <RegisterForComInterop>False</RegisterForComInterop>
     <GenerateSerializationAssemblies>Auto</GenerateSerializationAssemblies>
@@ -46,9 +46,6 @@
     <OutputPath>bin\Debug\</OutputPath>
     <DefineConstants>DEBUG;DATACONSISTENCYTEST</DefineConstants>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
-    <CodeAnalysisRules>
-    </CodeAnalysisRules>
-    <CodeAnalysisRuleSet>Migrated rules for ICSharpCode.TextEditor.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <Optimize>True</Optimize>

@@ -1,4 +1,4 @@
-/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -19,36 +19,26 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#region Imports
-
 using System;
 using System.Collections;
 using System.Windows.Forms;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-
-#endregion
+using Reflexil.Utils;
 
 namespace Reflexil.Forms
 {
 	public partial class ExceptionHandlerForm
 	{
-		#region Properties
-
 		public MethodDefinition MethodDefinition { get; private set; }
-
 		public ExceptionHandler SelectedExceptionHandler { get; private set; }
-
-		#endregion
-
-		#region Events
 
 		private void Types_SelectedIndexChanged(object sender, EventArgs e)
 		{
 			if (Types.SelectedItem == null)
 				return;
 
-			var ehtype = (ExceptionHandlerType) Types.SelectedItem;
+			var ehtype = (ExceptionHandlerType)Types.SelectedItem;
 			if (ehtype == ExceptionHandlerType.Filter)
 			{
 				FilterStart.Enabled = FilterEnd.Enabled = true;
@@ -59,10 +49,6 @@ namespace Reflexil.Forms
 				FilterStart.Text = FilterEnd.Text = string.Empty;
 			}
 		}
-
-		#endregion
-
-		#region Methods
 
 		public ExceptionHandlerForm()
 		{
@@ -75,10 +61,10 @@ namespace Reflexil.Forms
 			foreach (var ire in new[] {TryStart, TryEnd, HandlerStart, HandlerEnd, FilterStart, FilterEnd})
 			{
 				ire.ReferencedItems = mdef.Body.Instructions;
-				ire.Initialize(mdef);
+				ire.Refresh(mdef);
 			}
 
-			Types.Items.AddRange(new ArrayList(Enum.GetValues(typeof (ExceptionHandlerType))).ToArray());
+			Types.Items.AddRange(new ArrayList(Enum.GetValues(typeof(ExceptionHandlerType))).ToArray());
 			Types.SelectedIndex = 0;
 		}
 
@@ -93,7 +79,7 @@ namespace Reflexil.Forms
 		{
 			try
 			{
-				var eh = new ExceptionHandler((ExceptionHandlerType) Types.SelectedItem);
+				var eh = new ExceptionHandler((ExceptionHandlerType)Types.SelectedItem);
 				if (eh.HandlerType == ExceptionHandlerType.Filter)
 					eh.FilterStart = FilterStart.SelectedOperand;
 
@@ -103,7 +89,7 @@ namespace Reflexil.Forms
 				eh.HandlerEnd = HandlerEnd.SelectedOperand;
 
 				if (CatchType.SelectedOperand != null)
-					eh.CatchType = MethodDefinition.DeclaringType.Module.Import(CatchType.SelectedOperand);
+					eh.CatchType = CecilImporter.Import(MethodDefinition.DeclaringType.Module, CatchType.SelectedOperand, MethodDefinition);
 
 				return eh;
 			}
@@ -113,7 +99,5 @@ namespace Reflexil.Forms
 				return null;
 			}
 		}
-
-		#endregion
 	}
 }

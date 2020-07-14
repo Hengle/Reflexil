@@ -1,4 +1,4 @@
-/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -19,27 +19,17 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#region Imports
-
 using System.Windows.Forms;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-
-#endregion
+using Reflexil.Utils;
 
 namespace Reflexil.Forms
 {
-	public partial class VariableForm : TypeSpecificationForm
+	internal partial class VariableForm : TypeSpecificationForm
 	{
-		#region Properties
-
 		public MethodDefinition MethodDefinition { get; private set; }
-
 		public VariableDefinition SelectedVariable { get; private set; }
-
-		#endregion
-
-		#region Methods
 
 		public VariableForm()
 		{
@@ -48,11 +38,8 @@ namespace Reflexil.Forms
 
 		protected VariableDefinition CreateVariable()
 		{
-			var result =
-				new VariableDefinition(MethodDefinition.DeclaringType.Module.Import(TypeSpecificationEditor.SelectedTypeReference))
-				{
-					Name = ItemName.Text
-				};
+			var result = new VariableDefinition(CecilImporter.Import(MethodDefinition.DeclaringType.Module,
+				TypeSpecificationEditor.SelectedTypeReference, MethodDefinition));
 			return result;
 		}
 
@@ -62,7 +49,5 @@ namespace Reflexil.Forms
 			SelectedVariable = selected;
 			return base.ShowDialog(mdef);
 		}
-
-		#endregion
 	}
 }

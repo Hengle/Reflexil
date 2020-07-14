@@ -1,65 +1,41 @@
-/*
-    Copyright (C) 2012-2014 de4dot@gmail.com
+// dnlib: See LICENSE.txt for more info
 
-    Permission is hereby granted, free of charge, to any person obtaining
-    a copy of this software and associated documentation files (the
-    "Software"), to deal in the Software without restriction, including
-    without limitation the rights to use, copy, modify, merge, publish,
-    distribute, sublicense, and/or sell copies of the Software, and to
-    permit persons to whom the Software is furnished to do so, subject to
-    the following conditions:
-
-    The above copyright notice and this permission notice shall be
-    included in all copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/
-
-﻿using System;
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
-using dnlib.Utils;
 using dnlib.DotNet.MD;
+using dnlib.DotNet.Pdb;
 
 namespace dnlib.DotNet {
 	/// <summary>
 	/// A high-level representation of a row in the ManifestResource table
 	/// </summary>
 	[DebuggerDisplay("{Offset} {Name.String} {Implementation}")]
-	public abstract class ManifestResource : IHasCustomAttribute {
+	public abstract class ManifestResource : IHasCustomAttribute, IHasCustomDebugInformation {
 		/// <summary>
 		/// The row id in its table
 		/// </summary>
 		protected uint rid;
 
 		/// <inheritdoc/>
-		public MDToken MDToken {
-			get { return new MDToken(Table.ManifestResource, rid); }
-		}
+		public MDToken MDToken => new MDToken(Table.ManifestResource, rid);
 
 		/// <inheritdoc/>
 		public uint Rid {
-			get { return rid; }
-			set { rid = value; }
+			get => rid;
+			set => rid = value;
 		}
 
 		/// <inheritdoc/>
-		public int HasCustomAttributeTag {
-			get { return 18; }
-		}
+		public int HasCustomAttributeTag => 18;
 
 		/// <summary>
 		/// From column ManifestResource.Offset
 		/// </summary>
 		public uint Offset {
-			get { return offset; }
-			set { offset = value; }
+			get => offset;
+			set => offset = value;
 		}
 		/// <summary/>
 		protected uint offset;
@@ -68,8 +44,8 @@ namespace dnlib.DotNet {
 		/// From column ManifestResource.Flags
 		/// </summary>
 		public ManifestResourceAttributes Flags {
-			get { return (ManifestResourceAttributes)attributes; }
-			set { attributes = (int)value; }
+			get => (ManifestResourceAttributes)attributes;
+			set => attributes = (int)value;
 		}
 		/// <summary>Attributes</summary>
 		protected int attributes;
@@ -78,8 +54,8 @@ namespace dnlib.DotNet {
 		/// From column ManifestResource.Name
 		/// </summary>
 		public UTF8String Name {
-			get { return name; }
-			set { name = value; }
+			get => name;
+			set => name = value;
 		}
 		/// <summary>Name</summary>
 		protected UTF8String name;
@@ -88,8 +64,8 @@ namespace dnlib.DotNet {
 		/// From column ManifestResource.Implementation
 		/// </summary>
 		public IImplementation Implementation {
-			get { return implementation; }
-			set { implementation = value; }
+			get => implementation;
+			set => implementation = value;
 		}
 		/// <summary/>
 		protected IImplementation implementation;
@@ -107,14 +83,33 @@ namespace dnlib.DotNet {
 		/// <summary/>
 		protected CustomAttributeCollection customAttributes;
 		/// <summary>Initializes <see cref="customAttributes"/></summary>
-		protected virtual void InitializeCustomAttributes() {
+		protected virtual void InitializeCustomAttributes() =>
 			Interlocked.CompareExchange(ref customAttributes, new CustomAttributeCollection(), null);
-		}
 
 		/// <inheritdoc/>
-		public bool HasCustomAttributes {
-			get { return CustomAttributes.Count > 0; }
+		public bool HasCustomAttributes => CustomAttributes.Count > 0;
+
+		/// <inheritdoc/>
+		public int HasCustomDebugInformationTag => 18;
+
+		/// <inheritdoc/>
+		public bool HasCustomDebugInfos => CustomDebugInfos.Count > 0;
+
+		/// <summary>
+		/// Gets all custom debug infos
+		/// </summary>
+		public IList<PdbCustomDebugInfo> CustomDebugInfos {
+			get {
+				if (customDebugInfos == null)
+					InitializeCustomDebugInfos();
+				return customDebugInfos;
+			}
 		}
+		/// <summary/>
+		protected IList<PdbCustomDebugInfo> customDebugInfos;
+		/// <summary>Initializes <see cref="customDebugInfos"/></summary>
+		protected virtual void InitializeCustomDebugInfos() =>
+			Interlocked.CompareExchange(ref customDebugInfos, new List<PdbCustomDebugInfo>(), null);
 
 		/// <summary>
 		/// Modify <see cref="attributes"/> property: <see cref="attributes"/> =
@@ -122,39 +117,26 @@ namespace dnlib.DotNet {
 		/// </summary>
 		/// <param name="andMask">Value to <c>AND</c></param>
 		/// <param name="orMask">Value to OR</param>
-		void ModifyAttributes(ManifestResourceAttributes andMask, ManifestResourceAttributes orMask) {
-#if THREAD_SAFE
-			int origVal, newVal;
-			do {
-				origVal = attributes;
-				newVal = (origVal & (int)andMask) | (int)orMask;
-			} while (Interlocked.CompareExchange(ref attributes, newVal, origVal) != origVal);
-#else
+		void ModifyAttributes(ManifestResourceAttributes andMask, ManifestResourceAttributes orMask) =>
 			attributes = (attributes & (int)andMask) | (int)orMask;
-#endif
-		}
 
 		/// <summary>
 		/// Gets/sets the visibility
 		/// </summary>
 		public ManifestResourceAttributes Visibility {
-			get { return (ManifestResourceAttributes)attributes & ManifestResourceAttributes.VisibilityMask; }
-			set { ModifyAttributes(~ManifestResourceAttributes.VisibilityMask, value & ManifestResourceAttributes.VisibilityMask); }
+			get => (ManifestResourceAttributes)attributes & ManifestResourceAttributes.VisibilityMask;
+			set => ModifyAttributes(~ManifestResourceAttributes.VisibilityMask, value & ManifestResourceAttributes.VisibilityMask);
 		}
 
 		/// <summary>
 		/// <c>true</c> if <see cref="ManifestResourceAttributes.Public"/> is set
 		/// </summary>
-		public bool IsPublic {
-			get { return ((ManifestResourceAttributes)attributes & ManifestResourceAttributes.VisibilityMask) == ManifestResourceAttributes.Public; }
-		}
+		public bool IsPublic => ((ManifestResourceAttributes)attributes & ManifestResourceAttributes.VisibilityMask) == ManifestResourceAttributes.Public;
 
 		/// <summary>
 		/// <c>true</c> if <see cref="ManifestResourceAttributes.Private"/> is set
 		/// </summary>
-		public bool IsPrivate {
-			get { return ((ManifestResourceAttributes)attributes & ManifestResourceAttributes.VisibilityMask) == ManifestResourceAttributes.Private; }
-		}
+		public bool IsPrivate => ((ManifestResourceAttributes)attributes & ManifestResourceAttributes.VisibilityMask) == ManifestResourceAttributes.Private;
 	}
 
 	/// <summary>
@@ -196,7 +178,7 @@ namespace dnlib.DotNet {
 		public ManifestResourceUser(UTF8String name, IImplementation implementation, ManifestResourceAttributes flags, uint offset) {
 			this.name = name;
 			this.implementation = implementation;
-			this.attributes = (int)flags;
+			attributes = (int)flags;
 			this.offset = offset;
 		}
 	}
@@ -211,15 +193,20 @@ namespace dnlib.DotNet {
 		readonly uint origRid;
 
 		/// <inheritdoc/>
-		public uint OrigRid {
-			get { return origRid; }
-		}
+		public uint OrigRid => origRid;
 
 		/// <inheritdoc/>
 		protected override void InitializeCustomAttributes() {
-			var list = readerModule.MetaData.GetCustomAttributeRidList(Table.ManifestResource, origRid);
-			var tmp = new CustomAttributeCollection((int)list.Length, list, (list2, index) => readerModule.ReadCustomAttribute(((RidList)list2)[index]));
+			var list = readerModule.Metadata.GetCustomAttributeRidList(Table.ManifestResource, origRid);
+			var tmp = new CustomAttributeCollection(list.Count, list, (list2, index) => readerModule.ReadCustomAttribute(list[index]));
 			Interlocked.CompareExchange(ref customAttributes, tmp, null);
+		}
+
+		/// <inheritdoc/>
+		protected override void InitializeCustomDebugInfos() {
+			var list = new List<PdbCustomDebugInfo>();
+			readerModule.InitializeCustomDebugInfos(new MDToken(MDToken.Table, origRid), new GenericParamContext(), list);
+			Interlocked.CompareExchange(ref customDebugInfos, list, null);
 		}
 
 		/// <summary>
@@ -234,15 +221,17 @@ namespace dnlib.DotNet {
 			if (readerModule == null)
 				throw new ArgumentNullException("readerModule");
 			if (readerModule.TablesStream.ManifestResourceTable.IsInvalidRID(rid))
-				throw new BadImageFormatException(string.Format("ManifestResource rid {0} does not exist", rid));
+				throw new BadImageFormatException($"ManifestResource rid {rid} does not exist");
 #endif
-			this.origRid = rid;
+			origRid = rid;
 			this.rid = rid;
 			this.readerModule = readerModule;
-			uint name;
-			uint implementation = readerModule.TablesStream.ReadManifestResourceRow(origRid, out this.offset, out this.attributes, out name);
-			this.name = readerModule.StringsStream.ReadNoNull(name);
-			this.implementation = readerModule.ResolveImplementation(implementation);
+			bool b = readerModule.TablesStream.TryReadManifestResourceRow(origRid, out var row);
+			Debug.Assert(b);
+			offset = row.Offset;
+			attributes = (int)row.Flags;
+			name = readerModule.StringsStream.ReadNoNull(row.Name);
+			implementation = readerModule.ResolveImplementation(row.Implementation);
 		}
 	}
 }

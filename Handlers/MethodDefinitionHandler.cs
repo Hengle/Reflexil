@@ -1,4 +1,4 @@
-/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -19,28 +19,18 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#region Imports
-
 using System;
 using Mono.Cecil;
 using Reflexil.Plugins;
 using Mono.Cecil.Rocks;
 using Reflexil.Properties;
 
-#endregion
-
 namespace Reflexil.Handlers
 {
 	public partial class MethodDefinitionHandler : IHandler
 	{
-		#region Fields
-
 		private MethodDefinition _mdef;
 		private bool _readonly;
-
-		#endregion
-
-		#region Properties
 
 		public bool ReadOnly
 		{
@@ -62,19 +52,23 @@ namespace Reflexil.Handlers
 			get { return _mdef; }
 		}
 
+		ModuleDefinition IHandler.TargetObjectModule
+		{
+			get
+			{
+				return _mdef == null ? null : _mdef.Module;
+			}
+		}
+
 		public string Label
 		{
 			get { return "Method definition"; }
 		}
 
-		public MethodDefinition MethodDefinition
+		private MethodDefinition MethodDefinition
 		{
 			get { return _mdef; }
 		}
-
-		#endregion
-
-		#region Events
 
 		private void Instructions_GridUpdated(object sender, EventArgs e)
 		{
@@ -91,6 +85,7 @@ namespace Reflexil.Handlers
 					_mdef.Body.ComputeOffsets();
 				}
 			}
+
 			Instructions.Rehash();
 			ExceptionHandlers.Rehash();
 		}
@@ -136,10 +131,6 @@ namespace Reflexil.Handlers
 			HandleItem(MethodDefinition);
 		}
 
-		#endregion
-
-		#region Methods
-
 		public MethodDefinitionHandler()
 		{
 			InitializeComponent();
@@ -167,7 +158,5 @@ namespace Reflexil.Handlers
 		{
 			HandleItem(PluginFactory.GetInstance().GetMethodDefinition(item));
 		}
-
-		#endregion
 	}
 }

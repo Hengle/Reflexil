@@ -9,9 +9,6 @@ using Be.Windows.Forms;
 
 namespace Reflexil.Editors
 {
-	/// <summary>
-	/// Summary description for FormFind.
-	/// </summary>
 	public class HexFindForm : Form
 	{
 		private HexBox _hexBox;
@@ -21,16 +18,10 @@ namespace Reflexil.Editors
 		private Button _btnOk;
 		private Button _btnCancel;
 
-		/// <summary>
-		/// Required designer variable.
-		/// </summary>
 		private readonly System.ComponentModel.Container _components = null;
 
 		public HexFindForm()
 		{
-			//
-			// Required for Windows Form Designer support
-			//
 			InitializeComponent();
 
 			_rbString.CheckedChanged += rb_CheckedChanged;
@@ -38,9 +29,6 @@ namespace Reflexil.Editors
 			_hexBox.ByteProvider = new DynamicByteProvider(new ByteCollection());
 		}
 
-		/// <summary>
-		/// Clean up any resources being used.
-		/// </summary>
 		protected override void Dispose(bool disposing)
 		{
 			if (disposing)
@@ -50,6 +38,7 @@ namespace Reflexil.Editors
 					_components.Dispose();
 				}
 			}
+
 			base.Dispose(disposing);
 		}
 
@@ -88,8 +77,8 @@ namespace Reflexil.Editors
 			this._hexBox.LineInfoForeColor = System.Drawing.Color.Empty;
 			this._hexBox.Location = new System.Drawing.Point(12, 76);
 			this._hexBox.Name = "_hexBox";
-			this._hexBox.ShadowSelectionColor = System.Drawing.Color.FromArgb(((int) (((byte) (100)))), ((int) (((byte) (60)))),
-				((int) (((byte) (188)))), ((int) (((byte) (255)))));
+			this._hexBox.ShadowSelectionColor = System.Drawing.Color.FromArgb(((int)(((byte)(100)))), ((int)(((byte)(60)))),
+				((int)(((byte)(188)))), ((int)(((byte)(255)))));
 			this._hexBox.Size = new System.Drawing.Size(304, 126);
 			this._hexBox.TabIndex = 3;
 			// 
@@ -180,10 +169,7 @@ namespace Reflexil.Editors
 
 		public byte[] GetFindBytes()
 		{
-			if (!_rbString.Checked)
-				return ((DynamicByteProvider) _hexBox.ByteProvider).Bytes.GetBytes();
-
-			return System.Text.Encoding.ASCII.GetBytes(_txtString.Text);
+			return !_rbString.Checked ? ((DynamicByteProvider)_hexBox.ByteProvider).Bytes.GetBytes() : System.Text.Encoding.ASCII.GetBytes(_txtString.Text);
 		}
 
 		private void rb_CheckedChanged(object sender, EventArgs e)

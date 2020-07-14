@@ -1,4 +1,4 @@
-/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -19,8 +19,6 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#region Imports
-
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -29,23 +27,12 @@ using de4dot.code.AssemblyClient;
 using de4dot.code.deobfuscators;
 using dnlib.DotNet;
 
-#endregion
-
 namespace Reflexil.Utils
 {
-	/// <summary>
-	/// Deobfuscator stuff.
-	/// </summary>
 	public static class De4DotHelper
 	{
-		#region Fields
-
 		private static IList<IDeobfuscatorInfo> _deobfuscatorinfos;
 		private static IList<IDeobfuscator> _deobfuscators;
-
-		#endregion
-
-		#region Properties
 
 		public static IList<IDeobfuscatorInfo> DeobfuscatorInfos
 		{
@@ -57,10 +44,6 @@ namespace Reflexil.Utils
 			get { return _deobfuscators ?? (_deobfuscators = CreateDeobfuscators()); }
 		}
 
-		#endregion
-
-		#region Methods
-
 		private static IList<IDeobfuscatorInfo> CreateDeobfuscatorInfos()
 		{
 			return new List<IDeobfuscatorInfo>
@@ -71,6 +54,7 @@ namespace Reflexil.Utils
 				new de4dot.code.deobfuscators.CodeFort.DeobfuscatorInfo(),
 				new de4dot.code.deobfuscators.CodeVeil.DeobfuscatorInfo(),
 				new de4dot.code.deobfuscators.CodeWall.DeobfuscatorInfo(),
+				new de4dot.code.deobfuscators.Confuser.DeobfuscatorInfo(),
 				new de4dot.code.deobfuscators.CryptoObfuscator.DeobfuscatorInfo(),
 				new de4dot.code.deobfuscators.DeepSea.DeobfuscatorInfo(),
 				new de4dot.code.deobfuscators.Dotfuscator.DeobfuscatorInfo(),
@@ -96,8 +80,7 @@ namespace Reflexil.Utils
 
 		public static bool IsUnknownDeobfuscator(IObfuscatedFile file)
 		{
-			return (file == null || file.Deobfuscator == null ||
-			        file.Deobfuscator is de4dot.code.deobfuscators.Unknown.Deobfuscator);
+			return file == null || file.Deobfuscator == null || file.Deobfuscator is de4dot.code.deobfuscators.Unknown.Deobfuscator;
 		}
 
 		public static IObfuscatedFile SearchDeobfuscator(string filename)
@@ -107,10 +90,7 @@ namespace Reflexil.Utils
 			var fileOptions = new ObfuscatedFile.Options {Filename = filename};
 			var moduleContext = new ModuleContext(TheAssemblyResolver.Instance);
 
-			var ofile = new ObfuscatedFile(fileOptions, moduleContext, new NewAppDomainAssemblyClientFactory())
-			{
-				DeobfuscatorContext = new DeobfuscatorContext(),
-			};
+			var ofile = new ObfuscatedFile(fileOptions, moduleContext, new NewAppDomainAssemblyClientFactory()) {DeobfuscatorContext = new DeobfuscatorContext(),};
 
 			try
 			{
@@ -123,7 +103,5 @@ namespace Reflexil.Utils
 
 			return ofile;
 		}
-
-		#endregion
 	}
 }

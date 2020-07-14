@@ -1,4 +1,4 @@
-﻿/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+﻿/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -21,14 +21,13 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 using System;
 using ICSharpCode.ILSpy;
-using ICSharpCode.ILSpy.TreeNodes.Analyzer;
 using ICSharpCode.TreeView;
 
 namespace Reflexil.Plugins.ILSpy.ContextMenu
 {
 	[ExportContextMenuEntry(Icon = "resources/update.png", Header = "Update ILSpy object model", Category = "ReflexilOM", Order = 110)]
 	internal class UpdateContextMenu : BaseContextMenu
-    {
+	{
 		public override void Execute(TextViewContext context)
 		{
 			PreserveNodeSelection(context, () => base.Execute(context));
@@ -41,8 +40,7 @@ namespace Reflexil.Plugins.ILSpy.ContextMenu
 
 		protected override bool IsVisible(SharpTreeNode node)
 		{
-			return ILSpyPackage.ActiveHandler != null && ILSpyPackage.ActiveHandler.TargetObject != null && !(node is AnalyzerTreeNode);
+			return ILSpyPackage.ActiveHandler != null && ILSpyPackage.ActiveHandler.TargetObject != null && node != null && !(node.GetType().Name.Contains("AnalyzedTypeTreeNode"));
 		}
-    }
+	}
 }
-

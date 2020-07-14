@@ -1,38 +1,11 @@
-/*
-    Copyright (C) 2012-2014 de4dot@gmail.com
+// dnlib: See LICENSE.txt for more info
 
-    Permission is hereby granted, free of charge, to any person obtaining
-    a copy of this software and associated documentation files (the
-    "Software"), to deal in the Software without restriction, including
-    without limitation the rights to use, copy, modify, merge, publish,
-    distribute, sublicense, and/or sell copies of the Software, and to
-    permit persons to whom the Software is furnished to do so, subject to
-    the following conditions:
-
-    The above copyright notice and this permission notice shall be
-    included in all copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/
-
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text.RegularExpressions;
+using System.Linq;
 using System.Xml;
 using dnlib.Threading;
-
-#if THREAD_SAFE
-using ThreadSafe = dnlib.Threading.Collections;
-#else
-using ThreadSafe = System.Collections.Generic;
-#endif
 
 namespace dnlib.DotNet {
 	/// <summary>
@@ -42,357 +15,133 @@ namespace dnlib.DotNet {
 		static readonly ModuleDef nullModule = new ModuleDefUser();
 
 		// DLL files are searched before EXE files
-		static readonly IList<string> assemblyExtensions = new string[] { ".dll", ".exe" };
+		static readonly string[] assemblyExtensions = new string[] { ".dll", ".exe" };
+		static readonly string[] winMDAssemblyExtensions = new string[] { ".winmd" };
 
-		static readonly GacInfo gac2Info;	// .NET 1.x and 2.x
-		static readonly GacInfo gac4Info;	// .NET 4.x
-
-		static readonly Dictionary<string, FrameworkRedirectInfo> frmRedir2;
-		static readonly Dictionary<string, FrameworkRedirectInfo> frmRedir4;
+		static readonly List<GacInfo> gacInfos;
+		static readonly string[] extraMonoPaths;
+		static readonly string[] monoVerDirs = new string[] {
+			// The "-api" dirs are reference assembly dirs.
+			"4.5", @"4.5\Facades", "4.5-api", @"4.5-api\Facades", "4.0", "4.0-api",
+			"3.5", "3.5-api", "3.0", "3.0-api", "2.0", "2.0-api",
+			"1.1", "1.0",
+		};
 
 		ModuleContext defaultModuleContext;
-		readonly Dictionary<ModuleDef, IList<string>> moduleSearchPaths = new Dictionary<ModuleDef, IList<string>>();
-		readonly Dictionary<string, AssemblyDef> cachedAssemblies = new Dictionary<string, AssemblyDef>(StringComparer.Ordinal);
-		readonly ThreadSafe.IList<string> preSearchPaths = ThreadSafeListCreator.Create<string>();
-		readonly ThreadSafe.IList<string> postSearchPaths = ThreadSafeListCreator.Create<string>();
+		readonly Dictionary<ModuleDef, List<string>> moduleSearchPaths = new Dictionary<ModuleDef, List<string>>();
+		readonly Dictionary<string, AssemblyDef> cachedAssemblies = new Dictionary<string, AssemblyDef>(StringComparer.OrdinalIgnoreCase);
+		readonly List<string> preSearchPaths = new List<string>();
+		readonly List<string> postSearchPaths = new List<string>();
 		bool findExactMatch;
 		bool enableFrameworkRedirect;
-		bool enableTypeDefCache;
+		bool enableTypeDefCache = true;
+		bool useGac = true;
 #if THREAD_SAFE
 		readonly Lock theLock = Lock.Create();
 #endif
 
 		sealed class GacInfo {
-			public readonly string path;
-			public readonly string prefix;
-			public readonly IList<string> subDirs;
+			public readonly int Version;
+			public readonly string Path;
+			public readonly string Prefix;
+			public readonly string[] SubDirs;
 
-			public GacInfo(string prefix, string path, IList<string> subDirs) {
-				this.prefix = prefix;
-				this.path = path;
-				this.subDirs = subDirs;
-			}
-		}
-
-		struct FrameworkRedirectInfo {
-			public readonly PublicKeyToken publicKeyToken;
-			public readonly Version redirectVersion;
-
-			public FrameworkRedirectInfo(string publicKeyToken, string redirectVersion) {
-				this.publicKeyToken = new PublicKeyToken(publicKeyToken);
-				this.redirectVersion = new Version(redirectVersion);
+			public GacInfo(int version, string prefix, string path, string[] subDirs) {
+				Version = version;
+				Prefix = prefix;
+				Path = path;
+				SubDirs = subDirs;
 			}
 		}
 
 		static AssemblyResolver() {
-			var windir = Environment.GetEnvironmentVariable("WINDIR");
-			if (!string.IsNullOrEmpty(windir)) {
-				gac2Info = new GacInfo("", Path.Combine(windir, "assembly"), new string[] {
-					"GAC_32", "GAC_64", "GAC_MSIL", "GAC"
-				});
-				gac4Info = new GacInfo("v4.0_", Path.Combine(Path.Combine(windir, "Microsoft.NET"), "assembly"), new string[] {
-					"GAC_32", "GAC_64", "GAC_MSIL"
-				});
+			gacInfos = new List<GacInfo>();
+
+			if (Type.GetType("Mono.Runtime") != null) {
+				var dirs = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+				var extraMonoPathsList = new List<string>();
+				foreach (var prefix in FindMonoPrefixes()) {
+					var dir = Path.Combine(Path.Combine(Path.Combine(prefix, "lib"), "mono"), "gac");
+					if (dirs.ContainsKey(dir))
+						continue;
+					dirs[dir] = true;
+
+					if (Directory.Exists(dir)) {
+						gacInfos.Add(new GacInfo(-1, "", Path.GetDirectoryName(dir), new string[] {
+							Path.GetFileName(dir)
+						}));
+					}
+
+					dir = Path.GetDirectoryName(dir);
+					foreach (var verDir in monoVerDirs) {
+						var dir2 = dir;
+						foreach (var d in verDir.Split(new char[] { '\\' }))
+							dir2 = Path.Combine(dir2, d);
+						if (Directory.Exists(dir2))
+							extraMonoPathsList.Add(dir2);
+					}
+				}
+
+				var paths = Environment.GetEnvironmentVariable("MONO_PATH");
+				if (paths != null) {
+					foreach (var tmp in paths.Split(Path.PathSeparator)) {
+						var path = tmp.Trim();
+						if (path != string.Empty && Directory.Exists(path))
+							extraMonoPathsList.Add(path);
+					}
+				}
+				extraMonoPaths = extraMonoPathsList.ToArray();
 			}
+			else {
+				var windir = Environment.GetEnvironmentVariable("WINDIR");
+				if (!string.IsNullOrEmpty(windir)) {
+					string path;
 
-			frmRedir2 = new Dictionary<string, FrameworkRedirectInfo>(StringComparer.OrdinalIgnoreCase);
-			frmRedir4 = new Dictionary<string, FrameworkRedirectInfo>(StringComparer.OrdinalIgnoreCase);
-			InitFrameworkRedirectV2();
-			InitFrameworkRedirectV4();
+					// .NET Framework 1.x and 2.x
+					path = Path.Combine(windir, "assembly");
+					if (Directory.Exists(path)) {
+						gacInfos.Add(new GacInfo(2, "", path, new string[] {
+							"GAC_32", "GAC_64", "GAC_MSIL", "GAC"
+						}));
+					}
+
+					// .NET Framework 4.x
+					path = Path.Combine(Path.Combine(windir, "Microsoft.NET"), "assembly");
+					if (Directory.Exists(path)) {
+						gacInfos.Add(new GacInfo(4, "v4.0_", path, new string[] {
+							"GAC_32", "GAC_64", "GAC_MSIL"
+						}));
+					}
+				}
+			}
 		}
 
-		static void InitFrameworkRedirectV2() {
-			frmRedir2["Accessibility"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["cscompmgd"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "8.0.0.0");
-			frmRedir2["CustomMarshalers"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["IEExecRemote"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["IEHost"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["IIEHost"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["ISymWrapper"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["Microsoft.JScript"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "8.0.0.0");
-			frmRedir2["Microsoft.VisualBasic"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "8.0.0.0");
-			frmRedir2["Microsoft.VisualBasic.Compatibility"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "8.0.0.0");
-			frmRedir2["Microsoft.VisualBasic.Compatibility.Data"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "8.0.0.0");
-			frmRedir2["Microsoft.VisualBasic.Vsa"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "8.0.0.0");
-			frmRedir2["Microsoft.VisualC"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "8.0.0.0");
-			frmRedir2["Microsoft.Vsa"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "8.0.0.0");
-			frmRedir2["Microsoft.Vsa.Vb.CodeDOMProcessor"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "8.0.0.0");
-			frmRedir2["Microsoft_VsaVb"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "8.0.0.0");
-			frmRedir2["mscorcfg"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["mscorlib"] = new FrameworkRedirectInfo("b77a5c561934e089", "2.0.0.0");
-			frmRedir2["System"] = new FrameworkRedirectInfo("b77a5c561934e089", "2.0.0.0");
-			frmRedir2["System.Configuration"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["System.Configuration.Install"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["System.Data"] = new FrameworkRedirectInfo("b77a5c561934e089", "2.0.0.0");
-			frmRedir2["System.Data.OracleClient"] = new FrameworkRedirectInfo("b77a5c561934e089", "2.0.0.0");
-			frmRedir2["System.Data.SqlXml"] = new FrameworkRedirectInfo("b77a5c561934e089", "2.0.0.0");
-			frmRedir2["System.Deployment"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["System.Design"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["System.DirectoryServices"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["System.DirectoryServices.Protocols"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["System.Drawing"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["System.Drawing.Design"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["System.EnterpriseServices"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["System.Management"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["System.Messaging"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["System.Runtime.Remoting"] = new FrameworkRedirectInfo("b77a5c561934e089", "2.0.0.0");
-			frmRedir2["System.Runtime.Serialization.Formatters.Soap"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["System.Security"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["System.ServiceProcess"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["System.Transactions"] = new FrameworkRedirectInfo("b77a5c561934e089", "2.0.0.0");
-			frmRedir2["System.Web"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["System.Web.Mobile"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["System.Web.RegularExpressions"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["System.Web.Services"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["System.Windows.Forms"] = new FrameworkRedirectInfo("b77a5c561934e089", "2.0.0.0");
-			frmRedir2["System.Xml"] = new FrameworkRedirectInfo("b77a5c561934e089", "2.0.0.0");
-			frmRedir2["vjscor"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["VJSharpCodeProvider"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["vjsJBC"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["vjslib"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["vjslibcw"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["Vjssupuilib"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["vjsvwaux"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["vjswfc"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["VJSWfcBrowserStubLib"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["vjswfccw"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir2["vjswfchtml"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
+		static string GetCurrentMonoPrefix() {
+			var path = typeof(object).Module.FullyQualifiedName;
+			for (int i = 0; i < 4; i++)
+				path = Path.GetDirectoryName(path);
+			return path;
 		}
 
-		static void InitFrameworkRedirectV4() {
-			frmRedir4["Accessibility"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["CustomMarshalers"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["ISymWrapper"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["Microsoft.JScript"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "10.0.0.0");
-			frmRedir4["Microsoft.VisualBasic"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "10.0.0.0");
-			frmRedir4["Microsoft.VisualBasic.Compatibility"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "10.0.0.0");
-			frmRedir4["Microsoft.VisualBasic.Compatibility.Data"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "10.0.0.0");
-			frmRedir4["Microsoft.VisualC"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "10.0.0.0");
-			frmRedir4["mscorlib"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Configuration"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Configuration.Install"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Data"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Data.OracleClient"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Data.SqlXml"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Deployment"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Design"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.DirectoryServices"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.DirectoryServices.Protocols"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Drawing"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Drawing.Design"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.EnterpriseServices"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Management"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Messaging"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Runtime.Remoting"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Runtime.Serialization.Formatters.Soap"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Security"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.ServiceProcess"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Transactions"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Web"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Web.Mobile"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Web.RegularExpressions"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Web.Services"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Windows.Forms"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Xml"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["AspNetMMCExt"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["sysglobl"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["Microsoft.Build.Engine"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["Microsoft.Build.Framework"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["PresentationCFFRasterizer"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["PresentationCore"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["PresentationFramework"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["PresentationFramework.Aero"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["PresentationFramework.Classic"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["PresentationFramework.Luna"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["PresentationFramework.Royale"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["PresentationUI"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["ReachFramework"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.Printing"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.Speech"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["UIAutomationClient"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["UIAutomationClientsideProviders"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["UIAutomationProvider"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["UIAutomationTypes"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["WindowsBase"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["WindowsFormsIntegration"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["SMDiagnostics"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.IdentityModel"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.IdentityModel.Selectors"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.IO.Log"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Runtime.Serialization"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.ServiceModel"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.ServiceModel.Install"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.ServiceModel.WasHosting"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Workflow.Activities"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.Workflow.ComponentModel"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.Workflow.Runtime"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["Microsoft.Transactions.Bridge"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["Microsoft.Transactions.Bridge.Dtc"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.AddIn"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.AddIn.Contract"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.ComponentModel.Composition"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Core"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Data.DataSetExtensions"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Data.Linq"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Xml.Linq"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.DirectoryServices.AccountManagement"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Management.Instrumentation"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Net"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.ServiceModel.Web"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.Web.Extensions"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.Web.Extensions.Design"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.Windows.Presentation"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.WorkflowServices"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.ComponentModel.DataAnnotations"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.Data.Entity"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Data.Entity.Design"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Data.Services"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Data.Services.Client"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Data.Services.Design"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Web.Abstractions"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.Web.DynamicData"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.Web.DynamicData.Design"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.Web.Entity"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Web.Entity.Design"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Web.Routing"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["Microsoft.Build"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["Microsoft.CSharp"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Dynamic"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Numerics"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Xaml"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["Microsoft.Workflow.Compiler"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["Microsoft.Activities.Build"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["Microsoft.Build.Conversion.v4.0"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["Microsoft.Build.Tasks.v4.0"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["Microsoft.Build.Utilities.v4.0"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["Microsoft.Internal.Tasks.Dataflow"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["Microsoft.VisualBasic.Activities.Compiler"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "10.0.0.0");
-			frmRedir4["Microsoft.VisualC.STLCLR"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "2.0.0.0");
-			frmRedir4["Microsoft.Windows.ApplicationServer.Applications"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["PresentationBuildTasks"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["PresentationFramework.Aero2"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["PresentationFramework.AeroLite"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["PresentationFramework-SystemCore"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["PresentationFramework-SystemData"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["PresentationFramework-SystemDrawing"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["PresentationFramework-SystemXml"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["PresentationFramework-SystemXmlLinq"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Activities"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.Activities.Core.Presentation"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.Activities.DurableInstancing"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.Activities.Presentation"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.ComponentModel.Composition.Registration"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Device"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.IdentityModel.Services"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.IO.Compression"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.IO.Compression.FileSystem"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Net.Http"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Net.Http.WebRequest"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Reflection.Context"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Runtime.Caching"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Runtime.DurableInstancing"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.Runtime.WindowsRuntime"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Runtime.WindowsRuntime.UI.Xaml"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.ServiceModel.Activation"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.ServiceModel.Activities"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.ServiceModel.Channels"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.ServiceModel.Discovery"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.ServiceModel.Internals"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.ServiceModel.Routing"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.ServiceModel.ServiceMoniker40"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Web.ApplicationServices"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.Web.DataVisualization"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.Web.DataVisualization.Design"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.Windows.Controls.Ribbon"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Windows.Forms.DataVisualization"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.Windows.Forms.DataVisualization.Design"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.Windows.Input.Manipulations"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-			frmRedir4["System.Xaml.Hosting"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["XamlBuildTask"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["XsdBuildTask"] = new FrameworkRedirectInfo("31bf3856ad364e35", "4.0.0.0");
-			frmRedir4["System.Collections"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Collections.Concurrent"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.ComponentModel"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.ComponentModel.Annotations"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.ComponentModel.EventBasedAsync"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Diagnostics.Contracts"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Diagnostics.Debug"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Diagnostics.Tools"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Diagnostics.Tracing"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Dynamic.Runtime"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Globalization"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.IO"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Linq"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Linq.Expressions"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Linq.Parallel"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Linq.Queryable"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Net.NetworkInformation"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Net.Primitives"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Net.Requests"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.ObjectModel"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Reflection"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Reflection.Emit"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Reflection.Emit.ILGeneration"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Reflection.Emit.Lightweight"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Reflection.Extensions"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Reflection.Primitives"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Resources.ResourceManager"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Runtime"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Runtime.Extensions"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Runtime.InteropServices"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Runtime.InteropServices.WindowsRuntime"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Runtime.Numerics"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Runtime.Serialization.Json"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Runtime.Serialization.Primitives"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Runtime.Serialization.Xml"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Security.Principal"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.ServiceModel.Duplex"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.ServiceModel.Http"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.ServiceModel.NetTcp"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.ServiceModel.Primitives"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.ServiceModel.Security"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Text.Encoding"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Text.Encoding.Extensions"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Text.RegularExpressions"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Threading"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Threading.Timer"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Threading.Tasks"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Threading.Tasks.Parallel"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Xml.ReaderWriter"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Xml.XDocument"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Xml.XmlSerializer"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Net.Http.Rtc"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Windows"] = new FrameworkRedirectInfo("b03f5f7f11d50a3a", "4.0.0.0");
-			frmRedir4["System.Xml.Serialization"] = new FrameworkRedirectInfo("b77a5c561934e089", "4.0.0.0");
-		}
+		static IEnumerable<string> FindMonoPrefixes() {
+			yield return GetCurrentMonoPrefix();
 
-		static void ApplyFrameworkRedirect(ref IAssembly assembly, ModuleDef sourceModule) {
-			if (sourceModule == null)
-				return;
-			if (!Utils.LocaleEquals(assembly.Culture, ""))
-				return;
-			if (!sourceModule.IsClr20 && !sourceModule.IsClr40)
-				return;
-
-			FrameworkRedirectInfo redirect;
-			if (!(sourceModule.IsClr20 ? frmRedir2 : frmRedir4).TryGetValue(assembly.Name, out redirect))
-				return;
-			if (PublicKeyBase.TokenCompareTo(assembly.PublicKeyOrToken, redirect.publicKeyToken) != 0)
-				return;
-			if (Utils.CompareTo(assembly.Version, redirect.redirectVersion) == 0)
-				return;
-
-			assembly = new AssemblyNameInfo(assembly);
-			assembly.Version = redirect.redirectVersion;
+			var prefixes = Environment.GetEnvironmentVariable("MONO_GAC_PREFIX");
+			if (!string.IsNullOrEmpty(prefixes)) {
+				foreach (var tmp in prefixes.Split(Path.PathSeparator)) {
+					var prefix = tmp.Trim();
+					if (prefix != string.Empty)
+						yield return prefix;
+				}
+			}
 		}
 
 		/// <summary>
 		/// Gets/sets the default <see cref="ModuleContext"/>
 		/// </summary>
 		public ModuleContext DefaultModuleContext {
-			get { return defaultModuleContext; }
-			set { defaultModuleContext = value; }
+			get => defaultModuleContext;
+			set => defaultModuleContext = value;
 		}
 
 		/// <summary>
@@ -401,8 +150,8 @@ namespace dnlib.DotNet {
 		/// assembly that is closest to the requested assembly.
 		/// </summary>
 		public bool FindExactMatch {
-			get { return findExactMatch; }
-			set { findExactMatch = value; }
+			get => findExactMatch;
+			set => findExactMatch = value;
 		}
 
 		/// <summary>
@@ -412,59 +161,52 @@ namespace dnlib.DotNet {
 		/// ignored if <see cref="FindExactMatch"/> is <c>true</c>.
 		/// </summary>
 		public bool EnableFrameworkRedirect {
-			get { return enableFrameworkRedirect; }
-			set { enableFrameworkRedirect = value; }
+			get => enableFrameworkRedirect;
+			set => enableFrameworkRedirect = value;
 		}
 
 		/// <summary>
 		/// If <c>true</c>, all modules in newly resolved assemblies will have their
-		/// <see cref="ModuleDef.EnableTypeDefFindCache"/> property set to <c>true</c>.
+		/// <see cref="ModuleDef.EnableTypeDefFindCache"/> property set to <c>true</c>. This is
+		/// enabled by default since these modules shouldn't be modified by the user.
 		/// </summary>
 		public bool EnableTypeDefCache {
-			get { return enableTypeDefCache; }
-			set { enableTypeDefCache = value; }
+			get => enableTypeDefCache;
+			set => enableTypeDefCache = value;
+		}
+
+		/// <summary>
+		/// true to search the Global Assembly Cache. Default value is true.
+		/// </summary>
+		public bool UseGAC {
+			get => useGac;
+			set => useGac = value;
 		}
 
 		/// <summary>
 		/// Gets paths searched before trying the standard locations
 		/// </summary>
-		public ThreadSafe.IList<string> PreSearchPaths {
-			get { return preSearchPaths; }
-		}
+		public IList<string> PreSearchPaths => preSearchPaths;
 
 		/// <summary>
 		/// Gets paths searched after trying the standard locations
 		/// </summary>
-		public ThreadSafe.IList<string> PostSearchPaths {
-			get { return postSearchPaths; }
-		}
+		public IList<string> PostSearchPaths => postSearchPaths;
 
 		/// <summary>
 		/// Default constructor
 		/// </summary>
 		public AssemblyResolver()
-			: this(null, true) {
+			: this(null) {
 		}
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="defaultModuleContext">Module context for all resolved assemblies</param>
-		public AssemblyResolver(ModuleContext defaultModuleContext)
-			: this(defaultModuleContext, true) {
-		}
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="defaultModuleContext">Module context for all resolved assemblies</param>
-		/// <param name="addOtherSearchPaths">If <c>true</c>, add other common assembly search
-		/// paths, not just the module search paths and the GAC.</param>
-		public AssemblyResolver(ModuleContext defaultModuleContext, bool addOtherSearchPaths) {
+		public AssemblyResolver(ModuleContext defaultModuleContext) {
 			this.defaultModuleContext = defaultModuleContext;
-			this.enableFrameworkRedirect = true;
-			if (addOtherSearchPaths)
-				AddOtherSearchPaths(postSearchPaths);
+			enableFrameworkRedirect = true;
 		}
 
 		/// <inheritdoc/>
@@ -473,12 +215,12 @@ namespace dnlib.DotNet {
 				return null;
 
 			if (EnableFrameworkRedirect && !FindExactMatch)
-				ApplyFrameworkRedirect(ref assembly, sourceModule);
+				FrameworkRedirect.ApplyFrameworkRedirect(ref assembly, sourceModule);
 
 #if THREAD_SAFE
 			theLock.EnterWriteLock(); try {
 #endif
-			AssemblyDef resolvedAssembly = Resolve2(assembly, sourceModule);
+			var resolvedAssembly = Resolve2(assembly, sourceModule);
 			if (resolvedAssembly == null) {
 				string asmName = UTF8String.ToSystemStringOrEmpty(assembly.Name);
 				string asmNameTrimmed = asmName.Trim();
@@ -502,14 +244,16 @@ namespace dnlib.DotNet {
 
 			var key1 = GetAssemblyNameKey(resolvedAssembly);
 			var key2 = GetAssemblyNameKey(assembly);
-			AssemblyDef asm1, asm2;
-			cachedAssemblies.TryGetValue(key1, out asm1);
-			cachedAssemblies.TryGetValue(key2, out asm2);
+			cachedAssemblies.TryGetValue(key1, out var asm1);
+			cachedAssemblies.TryGetValue(key2, out var asm2);
 
 			if (asm1 != resolvedAssembly && asm2 != resolvedAssembly) {
 				// This assembly was just resolved
 				if (enableTypeDefCache) {
-					foreach (var module in resolvedAssembly.Modules.GetSafeEnumerable()) {
+					var modules = resolvedAssembly.Modules;
+					int count = modules.Count;
+					for (int i = 0; i < count; i++) {
+						var module = modules[i];
 						if (module != null)
 							module.EnableTypeDefFindCache = true;
 					}
@@ -538,16 +282,30 @@ namespace dnlib.DotNet {
 #endif
 		}
 
-		/// <inheritdoc/>
+		/// <summary>
+		/// Add a module's assembly to the assembly cache
+		/// </summary>
+		/// <param name="module">The module whose assembly should be cached</param>
+		/// <returns><c>true</c> if <paramref name="module"/>'s assembly is cached, <c>false</c>
+		/// if it's not cached because some other assembly with the exact same full name has
+		/// already been cached or if <paramref name="module"/> or its assembly is <c>null</c>.</returns>
+		public bool AddToCache(ModuleDef module) => module != null && AddToCache(module.Assembly);
+
+		/// <summary>
+		/// Add an assembly to the assembly cache
+		/// </summary>
+		/// <param name="asm">The assembly</param>
+		/// <returns><c>true</c> if <paramref name="asm"/> is cached, <c>false</c> if it's not
+		/// cached because some other assembly with the exact same full name has already been
+		/// cached or if <paramref name="asm"/> is <c>null</c>.</returns>
 		public bool AddToCache(AssemblyDef asm) {
 			if (asm == null)
 				return false;
 			var asmKey = GetAssemblyNameKey(asm);
-			AssemblyDef cachedAsm;
 #if THREAD_SAFE
 			theLock.EnterWriteLock(); try {
 #endif
-			if (cachedAssemblies.TryGetValue(asmKey, out cachedAsm) && cachedAsm != null)
+			if (cachedAssemblies.TryGetValue(asmKey, out var cachedAsm) && cachedAsm != null)
 				return asm == cachedAsm;
 			cachedAssemblies[asmKey] = asm;
 			return true;
@@ -556,7 +314,21 @@ namespace dnlib.DotNet {
 #endif
 		}
 
-		/// <inheritdoc/>
+		/// <summary>
+		/// Removes a module's assembly from the cache
+		/// </summary>
+		/// <param name="module">The module</param>
+		/// <returns><c>true</c> if its assembly was removed, <c>false</c> if it wasn't removed
+		/// since it wasn't in the cache, it has no assembly, or <paramref name="module"/> was
+		/// <c>null</c></returns>
+		public bool Remove(ModuleDef module) => module != null && Remove(module.Assembly);
+
+		/// <summary>
+		/// Removes the assembly from the cache
+		/// </summary>
+		/// <param name="asm">The assembly</param>
+		/// <returns><c>true</c> if it was removed, <c>false</c> if it wasn't removed since it
+		/// wasn't in the cache or if <paramref name="asm"/> was <c>null</c></returns>
 		public bool Remove(AssemblyDef asm) {
 			if (asm == null)
 				return false;
@@ -570,7 +342,12 @@ namespace dnlib.DotNet {
 #endif
 		}
 
-		/// <inheritdoc/>
+		/// <summary>
+		/// Clears the cache and calls <see cref="IDisposable.Dispose()"/> on each cached module.
+		/// Use <see cref="Remove(AssemblyDef)"/> to remove any assemblies you added yourself
+		/// using <see cref="AddToCache(AssemblyDef)"/> before calling this method if you don't want
+		/// them disposed.
+		/// </summary>
 		public void Clear() {
 			List<AssemblyDef> asms;
 #if THREAD_SAFE
@@ -589,15 +366,29 @@ namespace dnlib.DotNet {
 			}
 		}
 
+		/// <summary>
+		/// Gets the cached assemblies in this resolver.
+		/// </summary>
+		/// <returns>The cached assemblies.</returns>
+		public IEnumerable<AssemblyDef> GetCachedAssemblies() {
+			AssemblyDef[] assemblies;
+#if THREAD_SAFE
+			theLock.EnterReadLock(); try {
+#endif
+			assemblies = cachedAssemblies.Values.ToArray();
+#if THREAD_SAFE
+			} finally { theLock.ExitReadLock(); }
+#endif
+			return assemblies;
+		}
+
 		static string GetAssemblyNameKey(IAssembly asmName) {
 			// Make sure the name contains PublicKeyToken= and not PublicKey=
-			return asmName.FullNameToken.ToUpperInvariant();
+			return asmName.FullNameToken;
 		}
 
 		AssemblyDef Resolve2(IAssembly assembly, ModuleDef sourceModule) {
-			AssemblyDef resolvedAssembly;
-
-			if (cachedAssemblies.TryGetValue(GetAssemblyNameKey(assembly), out resolvedAssembly))
+			if (cachedAssemblies.TryGetValue(GetAssemblyNameKey(assembly), out var resolvedAssembly))
 				return resolvedAssembly;
 
 			var moduleContext = defaultModuleContext;
@@ -623,7 +414,7 @@ namespace dnlib.DotNet {
 		/// <summary>
 		/// Finds an assembly that exactly matches the requested assembly
 		/// </summary>
-		/// <param name="assembly">Assembly name to find</param>
+		/// <param name="assembly">Assembly to find</param>
 		/// <param name="paths">Search paths or <c>null</c> if none</param>
 		/// <param name="moduleContext">Module context</param>
 		/// <returns>An <see cref="AssemblyDef"/> instance or <c>null</c> if an exact match
@@ -631,8 +422,8 @@ namespace dnlib.DotNet {
 		AssemblyDef FindExactAssembly(IAssembly assembly, IEnumerable<string> paths, ModuleContext moduleContext) {
 			if (paths == null)
 				return null;
-			var asmComparer = new AssemblyNameComparer(AssemblyNameComparerFlags.All);
-			foreach (var path in paths.GetSafeEnumerable()) {
+			var asmComparer = AssemblyNameComparer.CompareAll;
+			foreach (var path in paths) {
 				ModuleDefMD mod = null;
 				try {
 					mod = ModuleDefMD.Load(path, moduleContext);
@@ -655,12 +446,13 @@ namespace dnlib.DotNet {
 		/// <summary>
 		/// Finds the closest assembly from the already cached assemblies
 		/// </summary>
-		/// <param name="assembly">Assembly name to find</param>
+		/// <param name="assembly">Assembly to find</param>
 		/// <returns>The closest <see cref="AssemblyDef"/> or <c>null</c> if none found</returns>
 		AssemblyDef FindClosestAssembly(IAssembly assembly) {
 			AssemblyDef closest = null;
-			var asmComparer = new AssemblyNameComparer(AssemblyNameComparerFlags.All);
-			foreach (var asm in cachedAssemblies.Values) {
+			var asmComparer = AssemblyNameComparer.CompareAll;
+			foreach (var kv in cachedAssemblies) {
+				var asm = kv.Value;
 				if (asm == null)
 					continue;
 				if (asmComparer.CompareClosest(assembly, closest, asm) == 1)
@@ -672,8 +464,8 @@ namespace dnlib.DotNet {
 		AssemblyDef FindClosestAssembly(IAssembly assembly, AssemblyDef closest, IEnumerable<string> paths, ModuleContext moduleContext) {
 			if (paths == null)
 				return closest;
-			var asmComparer = new AssemblyNameComparer(AssemblyNameComparerFlags.All);
-			foreach (var path in paths.GetSafeEnumerable()) {
+			var asmComparer = AssemblyNameComparer.CompareAll;
+			foreach (var path in paths) {
 				ModuleDefMD mod = null;
 				try {
 					mod = ModuleDefMD.Load(path, moduleContext);
@@ -706,16 +498,16 @@ namespace dnlib.DotNet {
 		bool IsCached(AssemblyDef asm) {
 			if (asm == null)
 				return false;
-			AssemblyDef cachedAsm;
-			return cachedAssemblies.TryGetValue(GetAssemblyNameKey(asm), out cachedAsm) &&
+			return cachedAssemblies.TryGetValue(GetAssemblyNameKey(asm), out var cachedAsm) &&
 					cachedAsm == asm;
 		}
 
 		IEnumerable<string> FindAssemblies2(IAssembly assembly, IEnumerable<string> paths) {
 			if (paths != null) {
 				var asmSimpleName = UTF8String.ToSystemStringOrEmpty(assembly.Name);
-				foreach (var ext in assemblyExtensions) {
-					foreach (var path in paths.GetSafeEnumerable()) {
+				var exts = assembly.IsContentTypeWindowsRuntime ? winMDAssemblyExtensions : assemblyExtensions;
+				foreach (var ext in exts) {
+					foreach (var path in paths) {
 						var fullPath = Path.Combine(path, asmSimpleName + ext);
 						if (File.Exists(fullPath))
 							yield return fullPath;
@@ -727,7 +519,7 @@ namespace dnlib.DotNet {
 		/// <summary>
 		/// Called before <see cref="FindAssemblies"/>
 		/// </summary>
-		/// <param name="assembly">Simple assembly name</param>
+		/// <param name="assembly">Assembly to find</param>
 		/// <param name="sourceModule">The module that needs to resolve an assembly or <c>null</c></param>
 		/// <param name="matchExactly">We're trying to find an exact match</param>
 		/// <returns><c>null</c> or an enumerable of full paths to try</returns>
@@ -739,7 +531,7 @@ namespace dnlib.DotNet {
 		/// <summary>
 		/// Called after <see cref="FindAssemblies"/> (if it fails)
 		/// </summary>
-		/// <param name="assembly">Simple assembly name</param>
+		/// <param name="assembly">Assembly to find</param>
 		/// <param name="sourceModule">The module that needs to resolve an assembly or <c>null</c></param>
 		/// <param name="matchExactly">We're trying to find an exact match</param>
 		/// <returns><c>null</c> or an enumerable of full paths to try</returns>
@@ -751,13 +543,22 @@ namespace dnlib.DotNet {
 		/// <summary>
 		/// Called after <see cref="PreFindAssemblies"/> (if it fails)
 		/// </summary>
-		/// <param name="assembly">Simple assembly name</param>
+		/// <param name="assembly">Assembly to find</param>
 		/// <param name="sourceModule">The module that needs to resolve an assembly or <c>null</c></param>
 		/// <param name="matchExactly">We're trying to find an exact match</param>
 		/// <returns><c>null</c> or an enumerable of full paths to try</returns>
 		protected virtual IEnumerable<string> FindAssemblies(IAssembly assembly, ModuleDef sourceModule, bool matchExactly) {
-			foreach (var path in FindAssembliesGac(assembly, sourceModule, matchExactly))
-				yield return path;
+			if (assembly.IsContentTypeWindowsRuntime) {
+				var path = Path.Combine(Path.Combine(Environment.SystemDirectory, "WinMetadata"), assembly.Name + ".winmd");
+				if (File.Exists(path))
+					yield return path;
+			}
+			else {
+				if (UseGAC) {
+					foreach (var path in FindAssembliesGac(assembly, sourceModule, matchExactly))
+						yield return path;
+				}
+			}
 			foreach (var path in FindAssembliesModuleSearchPaths(assembly, sourceModule, matchExactly))
 				yield return path;
 		}
@@ -768,11 +569,38 @@ namespace dnlib.DotNet {
 			return FindAssembliesGacAny(assembly, sourceModule);
 		}
 
+		IEnumerable<GacInfo> GetGacInfos(ModuleDef sourceModule) {
+			int version = sourceModule == null ? int.MinValue : sourceModule.IsClr40 ? 4 : 2;
+			// Try the correct GAC first (eg. GAC4 if it's a .NET 4 assembly)
+			foreach (var gacInfo in gacInfos) {
+				if (gacInfo.Version == version)
+					yield return gacInfo;
+			}
+			foreach (var gacInfo in gacInfos) {
+				if (gacInfo.Version != version)
+					yield return gacInfo;
+			}
+		}
+
 		IEnumerable<string> FindAssembliesGacExactly(IAssembly assembly, ModuleDef sourceModule) {
-			foreach (var path in FindAssembliesGacExactly(gac2Info, assembly, sourceModule))
-				yield return path;
-			foreach (var path in FindAssembliesGacExactly(gac4Info, assembly, sourceModule))
-				yield return path;
+			foreach (var gacInfo in GetGacInfos(sourceModule)) {
+				foreach (var path in FindAssembliesGacExactly(gacInfo, assembly, sourceModule))
+					yield return path;
+			}
+			if (extraMonoPaths != null) {
+				foreach (var path in GetExtraMonoPaths(assembly, sourceModule))
+					yield return path;
+			}
+		}
+
+		static IEnumerable<string> GetExtraMonoPaths(IAssembly assembly, ModuleDef sourceModule) {
+			if (extraMonoPaths != null) {
+				foreach (var dir in extraMonoPaths) {
+					var file = Path.Combine(dir, assembly.Name + ".dll");
+					if (File.Exists(file))
+						yield return file;
+				}
+			}
 		}
 
 		IEnumerable<string> FindAssembliesGacExactly(GacInfo gacInfo, IAssembly assembly, ModuleDef sourceModule) {
@@ -780,11 +608,14 @@ namespace dnlib.DotNet {
 			if (gacInfo != null && pkt != null) {
 				string pktString = pkt.ToString();
 				string verString = Utils.CreateVersionWithNoUndefinedValues(assembly.Version).ToString();
+				var cultureString = UTF8String.ToSystemStringOrEmpty(assembly.Culture);
+				if (cultureString.Equals("neutral", StringComparison.OrdinalIgnoreCase))
+					cultureString = string.Empty;
 				var asmSimpleName = UTF8String.ToSystemStringOrEmpty(assembly.Name);
-				foreach (var subDir in gacInfo.subDirs) {
-					var baseDir = Path.Combine(gacInfo.path, subDir);
+				foreach (var subDir in gacInfo.SubDirs) {
+					var baseDir = Path.Combine(gacInfo.Path, subDir);
 					baseDir = Path.Combine(baseDir, asmSimpleName);
-					baseDir = Path.Combine(baseDir, string.Format("{0}{1}__{2}", gacInfo.prefix, verString, pktString));
+					baseDir = Path.Combine(baseDir, $"{gacInfo.Prefix}{verString}_{cultureString}_{pktString}");
 					var pathName = Path.Combine(baseDir, asmSimpleName + ".dll");
 					if (File.Exists(pathName))
 						yield return pathName;
@@ -793,17 +624,21 @@ namespace dnlib.DotNet {
 		}
 
 		IEnumerable<string> FindAssembliesGacAny(IAssembly assembly, ModuleDef sourceModule) {
-			foreach (var path in FindAssembliesGacAny(gac2Info, assembly, sourceModule))
-				yield return path;
-			foreach (var path in FindAssembliesGacAny(gac4Info, assembly, sourceModule))
-				yield return path;
+			foreach (var gacInfo in GetGacInfos(sourceModule)) {
+				foreach (var path in FindAssembliesGacAny(gacInfo, assembly, sourceModule))
+					yield return path;
+			}
+			if (extraMonoPaths != null) {
+				foreach (var path in GetExtraMonoPaths(assembly, sourceModule))
+					yield return path;
+			}
 		}
 
 		IEnumerable<string> FindAssembliesGacAny(GacInfo gacInfo, IAssembly assembly, ModuleDef sourceModule) {
 			if (gacInfo != null) {
 				var asmSimpleName = UTF8String.ToSystemStringOrEmpty(assembly.Name);
-				foreach (var subDir in gacInfo.subDirs) {
-					var baseDir = Path.Combine(gacInfo.path, subDir);
+				foreach (var subDir in gacInfo.SubDirs) {
+					var baseDir = Path.Combine(gacInfo.Path, subDir);
 					baseDir = Path.Combine(baseDir, asmSimpleName);
 					foreach (var dir in GetDirs(baseDir)) {
 						var pathName = Path.Combine(dir, asmSimpleName + ".dll");
@@ -815,6 +650,8 @@ namespace dnlib.DotNet {
 		}
 
 		IEnumerable<string> GetDirs(string baseDir) {
+			if (!Directory.Exists(baseDir))
+				return Array2.Empty<string>();
 			var dirs = new List<string>();
 			try {
 				foreach (var di in new DirectoryInfo(baseDir).GetDirectories())
@@ -828,8 +665,9 @@ namespace dnlib.DotNet {
 		IEnumerable<string> FindAssembliesModuleSearchPaths(IAssembly assembly, ModuleDef sourceModule, bool matchExactly) {
 			string asmSimpleName = UTF8String.ToSystemStringOrEmpty(assembly.Name);
 			var searchPaths = GetSearchPaths(sourceModule);
-			foreach (var ext in assemblyExtensions) {
-				foreach (var path in searchPaths.GetSafeEnumerable()) {
+			var exts = assembly.IsContentTypeWindowsRuntime ? winMDAssemblyExtensions : assemblyExtensions;
+			foreach (var ext in exts) {
+				foreach (var path in searchPaths) {
 					for (int i = 0; i < 2; i++) {
 						string path2;
 						if (i == 0)
@@ -849,11 +687,10 @@ namespace dnlib.DotNet {
 		/// <param name="module">The module or <c>null</c> if unknown</param>
 		/// <returns>A list of all search paths to use for this module</returns>
 		IEnumerable<string> GetSearchPaths(ModuleDef module) {
-			ModuleDef keyModule = module;
+			var keyModule = module;
 			if (keyModule == null)
 				keyModule = nullModule;
-			IList<string> searchPaths;
-			if (moduleSearchPaths.TryGetValue(keyModule, out searchPaths))
+			if (moduleSearchPaths.TryGetValue(keyModule, out var searchPaths))
 				return searchPaths;
 			moduleSearchPaths[keyModule] = searchPaths = new List<string>(GetModuleSearchPaths(module));
 			return searchPaths;
@@ -866,9 +703,7 @@ namespace dnlib.DotNet {
 		/// </summary>
 		/// <param name="module">The module or <c>null</c> if unknown</param>
 		/// <returns>A list of search paths</returns>
-		protected virtual IEnumerable<string> GetModuleSearchPaths(ModuleDef module) {
-			return GetModulePrivateSearchPaths(module);
-		}
+		protected virtual IEnumerable<string> GetModuleSearchPaths(ModuleDef module) => GetModulePrivateSearchPaths(module);
 
 		/// <summary>
 		/// Gets all private assembly search paths as found in the module's <c>.config</c> file.
@@ -877,13 +712,13 @@ namespace dnlib.DotNet {
 		/// <returns>A list of search paths</returns>
 		protected IEnumerable<string> GetModulePrivateSearchPaths(ModuleDef module) {
 			if (module == null)
-				return new string[0];
+				return Array2.Empty<string>();
 			var asm = module.Assembly;
 			if (asm == null)
-				return new string[0];
+				return Array2.Empty<string>();
 			module = asm.ManifestModule;
 			if (module == null)
-				return new string[0];	// Should never happen
+				return Array2.Empty<string>();  // Should never happen
 
 			string baseDir = null;
 			try {
@@ -899,7 +734,7 @@ namespace dnlib.DotNet {
 			}
 			if (baseDir != null)
 				return new List<string> { baseDir };
-			return new string[0];
+			return Array2.Empty<string>();
 		}
 
 		IEnumerable<string> GetPrivatePaths(string baseDir, string configFileName) {
@@ -938,121 +773,6 @@ namespace dnlib.DotNet {
 			}
 
 			return searchPaths;
-		}
-
-		/// <summary>
-		/// Add other common search paths
-		/// </summary>
-		/// <param name="paths">A list that gets updated with the new paths</param>
-		protected static void AddOtherSearchPaths(IList<string> paths) {
-			AddOtherAssemblySearchPaths(paths, Environment.GetEnvironmentVariable("ProgramFiles"));
-			AddOtherAssemblySearchPaths(paths, Environment.GetEnvironmentVariable("ProgramFiles(x86)"));
-		}
-
-		static void AddOtherAssemblySearchPaths(IList<string> paths, string path) {
-			if (string.IsNullOrEmpty(path))
-				return;
-			AddSilverlightDirs(paths, Path.Combine(path, @"Microsoft Silverlight"));
-			AddIfExists(paths, path, @"Microsoft SDKs\Silverlight\v2.0\Libraries\Client");
-			AddIfExists(paths, path, @"Microsoft SDKs\Silverlight\v2.0\Libraries\Server");
-			AddIfExists(paths, path, @"Microsoft SDKs\Silverlight\v2.0\Reference Assemblies");
-			AddIfExists(paths, path, @"Microsoft SDKs\Silverlight\v3.0\Libraries\Client");
-			AddIfExists(paths, path, @"Microsoft SDKs\Silverlight\v3.0\Libraries\Server");
-			AddIfExists(paths, path, @"Microsoft SDKs\Silverlight\v4.0\Libraries\Client");
-			AddIfExists(paths, path, @"Microsoft SDKs\Silverlight\v4.0\Libraries\Server");
-			AddIfExists(paths, path, @"Microsoft SDKs\Silverlight\v5.0\Libraries\Client");
-			AddIfExists(paths, path, @"Microsoft SDKs\Silverlight\v5.0\Libraries\Server");
-			AddIfExists(paths, path, @"Microsoft.NET\SDK\CompactFramework\v2.0\WindowsCE");
-			AddIfExists(paths, path, @"Microsoft.NET\SDK\CompactFramework\v3.5\WindowsCE");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\Framework\.NETFramework\v4.5.1");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\Framework\.NETFramework\v4.5");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\Framework\.NETFramework\v4.0");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\Framework\.NETFramework\v4.0\Profile\Client");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\Framework\.NETFramework\v3.5\Profile\Client");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\Framework\.NETCore\v4.5.1");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\Framework\.NETCore\v4.5");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\Framework\.NETMicroFramework\v3.0");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\Framework\.NETMicroFramework\v4.0");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\Framework\.NETMicroFramework\v4.1");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\Framework\.NETMicroFramework\v4.2");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\Framework\.NETMicroFramework\v4.3");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\Framework\.NETPortable\v4.0");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\Framework\.NETPortable\v4.5");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\Framework\.NETPortable\v4.6");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\Framework\v3.0");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\Framework\v3.5");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\Framework\Silverlight\v3.0");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\Framework\Silverlight\v4.0");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\Framework\Silverlight\v5.0");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\FSharp\.NETCore\3.3.1.0");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\FSharp\.NETFramework\v2.0\2.3.0.0");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\FSharp\.NETFramework\v4.0\4.3.0.0");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\FSharp\.NETFramework\v4.0\4.3.1.0");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\FSharp\.NETPortable\2.3.5.0");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\FSharp\.NETPortable\2.3.5.1");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\FSharp\2.0\Runtime\v2.0");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\FSharp\2.0\Runtime\v4.0");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\FSharp\3.0\Runtime\.NETPortable");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\FSharp\3.0\Runtime\v2.0");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\FSharp\3.0\Runtime\v4.0");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\WindowsPowerShell\v1.0");
-			AddIfExists(paths, path, @"Reference Assemblies\Microsoft\WindowsPowerShell\3.0");
-			AddIfExists(paths, path, @"Microsoft Visual Studio .NET\Common7\IDE\PublicAssemblies");
-			AddIfExists(paths, path, @"Microsoft Visual Studio .NET\Common7\IDE\PrivateAssemblies");
-			AddIfExists(paths, path, @"Microsoft Visual Studio .NET 2003\Common7\IDE\PublicAssemblies");
-			AddIfExists(paths, path, @"Microsoft Visual Studio .NET 2003\Common7\IDE\PrivateAssemblies");
-			AddIfExists(paths, path, @"Microsoft Visual Studio 8\Common7\IDE\PublicAssemblies");
-			AddIfExists(paths, path, @"Microsoft Visual Studio 8\Common7\IDE\PrivateAssemblies");
-			AddIfExists(paths, path, @"Microsoft Visual Studio 9.0\Common7\IDE\PublicAssemblies");
-			AddIfExists(paths, path, @"Microsoft Visual Studio 9.0\Common7\IDE\PrivateAssemblies");
-			AddIfExists(paths, path, @"Microsoft Visual Studio 10.0\Common7\IDE\PublicAssemblies");
-			AddIfExists(paths, path, @"Microsoft Visual Studio 10.0\Common7\IDE\PrivateAssemblies");
-			AddIfExists(paths, path, @"Microsoft Visual Studio 11.0\Common7\IDE\PublicAssemblies");
-			AddIfExists(paths, path, @"Microsoft Visual Studio 11.0\Common7\IDE\PrivateAssemblies");
-			AddIfExists(paths, path, @"Microsoft Visual Studio 12.0\Common7\IDE\PublicAssemblies");
-			AddIfExists(paths, path, @"Microsoft Visual Studio 12.0\Common7\IDE\PrivateAssemblies");
-			AddIfExists(paths, path, @"Microsoft XNA\XNA Game Studio\v2.0\References\Windows\x86");
-			AddIfExists(paths, path, @"Microsoft XNA\XNA Game Studio\v2.0\References\Xbox360");
-			AddIfExists(paths, path, @"Microsoft XNA\XNA Game Studio\v3.0\References\Windows\x86");
-			AddIfExists(paths, path, @"Microsoft XNA\XNA Game Studio\v3.0\References\Xbox360");
-			AddIfExists(paths, path, @"Microsoft XNA\XNA Game Studio\v3.0\References\Zune");
-			AddIfExists(paths, path, @"Microsoft XNA\XNA Game Studio\v3.1\References\Windows\x86");
-			AddIfExists(paths, path, @"Microsoft XNA\XNA Game Studio\v3.1\References\Xbox360");
-			AddIfExists(paths, path, @"Microsoft XNA\XNA Game Studio\v3.1\References\Zune");
-			AddIfExists(paths, path, @"Microsoft XNA\XNA Game Studio\v4.0\References\Windows\x86");
-			AddIfExists(paths, path, @"Microsoft XNA\XNA Game Studio\v4.0\References\Xbox360");
-			AddIfExists(paths, path, @"Windows CE Tools\wce500\Windows Mobile 5.0 Pocket PC SDK\Designtimereferences");
-			AddIfExists(paths, path, @"Windows CE Tools\wce500\Windows Mobile 5.0 Smartphone SDK\Designtimereferences");
-			AddIfExists(paths, path, @"Windows Mobile 5.0 SDK R2\Managed Libraries");
-			AddIfExists(paths, path, @"Windows Mobile 6 SDK\Managed Libraries");
-			AddIfExists(paths, path, @"Windows Mobile 6.5.3 DTK\Managed Libraries");
-			AddIfExists(paths, path, @"Microsoft SQL Server\90\SDK\Assemblies");
-			AddIfExists(paths, path, @"Microsoft SQL Server\100\SDK\Assemblies");
-			AddIfExists(paths, path, @"Microsoft SQL Server\110\SDK\Assemblies");
-			AddIfExists(paths, path, @"Microsoft ASP.NET\ASP.NET MVC 2\Assemblies");
-			AddIfExists(paths, path, @"Microsoft ASP.NET\ASP.NET MVC 3\Assemblies");
-			AddIfExists(paths, path, @"Microsoft ASP.NET\ASP.NET MVC 4\Assemblies");
-			AddIfExists(paths, path, @"Microsoft ASP.NET\ASP.NET Web Pages\v1.0\Assemblies");
-			AddIfExists(paths, path, @"Microsoft ASP.NET\ASP.NET Web Pages\v2.0\Assemblies");
-			AddIfExists(paths, path, @"Microsoft SDKs\F#\3.0\Framework\v4.0");
-		}
-
-		static void AddSilverlightDirs(IList<string> paths, string basePath) {
-			try {
-				var di = new DirectoryInfo(basePath);
-				foreach (var dir in di.GetDirectories()) {
-					if (Regex.IsMatch(dir.Name, @"^\d+(?:\.\d+){3}$"))
-						AddIfExists(paths, basePath, dir.Name);
-				}
-			}
-			catch {
-			}
-		}
-
-		static void AddIfExists(IList<string> paths, string basePath, string extraPath) {
-			var path = Path.Combine(basePath, extraPath);
-			if (Directory.Exists(path))
-				paths.Add(path);
 		}
 	}
 }

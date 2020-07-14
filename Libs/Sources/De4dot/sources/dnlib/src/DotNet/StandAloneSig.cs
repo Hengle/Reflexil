@@ -1,63 +1,40 @@
-/*
-    Copyright (C) 2012-2014 de4dot@gmail.com
+// dnlib: See LICENSE.txt for more info
 
-    Permission is hereby granted, free of charge, to any person obtaining
-    a copy of this software and associated documentation files (the
-    "Software"), to deal in the Software without restriction, including
-    without limitation the rights to use, copy, modify, merge, publish,
-    distribute, sublicense, and/or sell copies of the Software, and to
-    permit persons to whom the Software is furnished to do so, subject to
-    the following conditions:
-
-    The above copyright notice and this permission notice shall be
-    included in all copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/
-
-﻿using System;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
-using dnlib.Utils;
 using dnlib.DotNet.MD;
+using dnlib.DotNet.Pdb;
 
 namespace dnlib.DotNet {
 	/// <summary>
 	/// A high-level representation of a row in the StandAloneSig table
 	/// </summary>
-	public abstract class StandAloneSig : IHasCustomAttribute {
+	public abstract class StandAloneSig : IHasCustomAttribute, IHasCustomDebugInformation, IContainsGenericParameter {
 		/// <summary>
 		/// The row id in its table
 		/// </summary>
 		protected uint rid;
 
 		/// <inheritdoc/>
-		public MDToken MDToken {
-			get { return new MDToken(Table.StandAloneSig, rid); }
-		}
+		public MDToken MDToken => new MDToken(Table.StandAloneSig, rid);
 
 		/// <inheritdoc/>
 		public uint Rid {
-			get { return rid; }
-			set { rid = value; }
+			get => rid;
+			set => rid = value;
 		}
 
 		/// <inheritdoc/>
-		public int HasCustomAttributeTag {
-			get { return 11; }
-		}
+		public int HasCustomAttributeTag => 11;
 
 		/// <summary>
 		/// From column StandAloneSig.Signature
 		/// </summary>
 		public CallingConventionSig Signature {
-			get { return signature; }
-			set { signature = value; }
+			get => signature;
+			set => signature = value;
 		}
 		/// <summary/>
 		protected CallingConventionSig signature;
@@ -75,30 +52,52 @@ namespace dnlib.DotNet {
 		/// <summary/>
 		protected CustomAttributeCollection customAttributes;
 		/// <summary>Initializes <see cref="customAttributes"/></summary>
-		protected virtual void InitializeCustomAttributes() {
+		protected virtual void InitializeCustomAttributes() =>
 			Interlocked.CompareExchange(ref customAttributes, new CustomAttributeCollection(), null);
-		}
 
 		/// <inheritdoc/>
-		public bool HasCustomAttributes {
-			get { return CustomAttributes.Count > 0; }
+		public bool HasCustomAttributes => CustomAttributes.Count > 0;
+
+		/// <inheritdoc/>
+		public int HasCustomDebugInformationTag => 11;
+
+		/// <inheritdoc/>
+		public bool HasCustomDebugInfos => CustomDebugInfos.Count > 0;
+
+		/// <summary>
+		/// Gets all custom debug infos
+		/// </summary>
+		public IList<PdbCustomDebugInfo> CustomDebugInfos {
+			get {
+				if (customDebugInfos == null)
+					InitializeCustomDebugInfos();
+				return customDebugInfos;
+			}
 		}
+		/// <summary/>
+		protected IList<PdbCustomDebugInfo> customDebugInfos;
+		/// <summary>Initializes <see cref="customDebugInfos"/></summary>
+		protected virtual void InitializeCustomDebugInfos() =>
+			Interlocked.CompareExchange(ref customDebugInfos, new List<PdbCustomDebugInfo>(), null);
 
 		/// <summary>
 		/// Gets/sets the method sig
 		/// </summary>
 		public MethodSig MethodSig {
-			get { return signature as MethodSig; }
-			set { signature = value; }
+			get => signature as MethodSig;
+			set => signature = value;
 		}
 
 		/// <summary>
 		/// Gets/sets the locals sig
 		/// </summary>
 		public LocalSig LocalSig {
-			get { return signature as LocalSig; }
-			set { signature = value; }
+			get => signature as LocalSig;
+			set => signature = value;
 		}
+
+		/// <inheritdoc/>
+		public bool ContainsGenericParameter => TypeHelper.ContainsGenericParameter(this);
 	}
 
 	/// <summary>
@@ -115,42 +114,40 @@ namespace dnlib.DotNet {
 		/// Constructor
 		/// </summary>
 		/// <param name="localSig">A locals sig</param>
-		public StandAloneSigUser(LocalSig localSig) {
-			this.signature = localSig;
-		}
+		public StandAloneSigUser(LocalSig localSig) => signature = localSig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="methodSig">A method sig</param>
-		public StandAloneSigUser(MethodSig methodSig) {
-			this.signature = methodSig;
-		}
+		public StandAloneSigUser(MethodSig methodSig) => signature = methodSig;
 	}
 
 	/// <summary>
 	/// Created from a row in the StandAloneSig table
 	/// </summary>
-	sealed class StandAloneSigMD : StandAloneSig, IMDTokenProviderMD, IContainsGenericParameter {
+	sealed class StandAloneSigMD : StandAloneSig, IMDTokenProviderMD {
 		/// <summary>The module where this instance is located</summary>
 		readonly ModuleDefMD readerModule;
 
 		readonly uint origRid;
+		readonly GenericParamContext gpContext;
 
 		/// <inheritdoc/>
-		public uint OrigRid {
-			get { return origRid; }
-		}
+		public uint OrigRid => origRid;
 
 		/// <inheritdoc/>
 		protected override void InitializeCustomAttributes() {
-			var list = readerModule.MetaData.GetCustomAttributeRidList(Table.StandAloneSig, origRid);
-			var tmp = new CustomAttributeCollection((int)list.Length, list, (list2, index) => readerModule.ReadCustomAttribute(((RidList)list2)[index]));
+			var list = readerModule.Metadata.GetCustomAttributeRidList(Table.StandAloneSig, origRid);
+			var tmp = new CustomAttributeCollection(list.Count, list, (list2, index) => readerModule.ReadCustomAttribute(list[index]));
 			Interlocked.CompareExchange(ref customAttributes, tmp, null);
 		}
 
-		public bool ContainsGenericParameter {
-			get { return TypeHelper.ContainsGenericParameter(this); }
+		/// <inheritdoc/>
+		protected override void InitializeCustomDebugInfos() {
+			var list = new List<PdbCustomDebugInfo>();
+			readerModule.InitializeCustomDebugInfos(new MDToken(MDToken.Table, origRid), gpContext, list);
+			Interlocked.CompareExchange(ref customDebugInfos, list, null);
 		}
 
 		/// <summary>
@@ -166,13 +163,15 @@ namespace dnlib.DotNet {
 			if (readerModule == null)
 				throw new ArgumentNullException("readerModule");
 			if (readerModule.TablesStream.StandAloneSigTable.IsInvalidRID(rid))
-				throw new BadImageFormatException(string.Format("StandAloneSig rid {0} does not exist", rid));
+				throw new BadImageFormatException($"StandAloneSig rid {rid} does not exist");
 #endif
-			this.origRid = rid;
+			origRid = rid;
 			this.rid = rid;
 			this.readerModule = readerModule;
-			uint signature = readerModule.TablesStream.ReadStandAloneSigRow2(origRid);
-			this.signature = readerModule.ReadSignature(signature, gpContext);
+			this.gpContext = gpContext;
+			bool b = readerModule.TablesStream.TryReadStandAloneSigRow(origRid, out var row);
+			Debug.Assert(b);
+			signature = readerModule.ReadSignature(row.Signature, gpContext);
 		}
 	}
 }

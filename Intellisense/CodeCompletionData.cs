@@ -38,22 +38,17 @@ using Reflexil.Compilation;
 
 namespace Reflexil.Intellisense
 {
-	/// <summary>
-	/// Represents an item in the code completion window.
-	/// </summary>
 	internal class CodeCompletionData : DefaultCompletionData, ICompletionData
 	{
 		private readonly IMember _member;
 		private readonly IClass _class;
 
-		public CodeCompletionData(IMember member)
-			: base(member.Name, null, GetMemberImageIndex(member))
+		public CodeCompletionData(IMember member) : base(member.Name, null, GetMemberImageIndex(member))
 		{
 			_member = member;
 		}
 
-		public CodeCompletionData(IClass @class)
-			: base(@class.Name, null, GetClassImageIndex(@class))
+		public CodeCompletionData(IClass @class) : base(@class.Name, null, GetClassImageIndex(@class))
 		{
 			_class = @class;
 		}
@@ -101,37 +96,37 @@ namespace Reflexil.Intellisense
 				if (_description != null)
 					return _description;
 
-				var entity = (IEntity) _member ?? _class;
+				var entity = (IEntity)_member ?? _class;
 				_description = GetText(entity);
 				if (_overloads > 1)
 				{
 					_description += " (+" + _overloads + " overloads)";
 				}
+
 				_description += Environment.NewLine + XmlDocumentationToText(entity.Documentation);
 				return _description;
 			}
 		}
 
-		/// <summary>
-		/// Converts a member to text.
-		/// Returns the declaration of the member as C# or VB code, e.g.
-		/// "public void MemberName(string parameter)"
-		/// </summary>
 		private static string GetText(IEntity entity)
 		{
-			IAmbience ambience = IntellisenseForm.SupportedLanguage == SupportedLanguage.VisualBasic
-				? (IAmbience) new VBNetAmbience()
+			var ambience = IntellisenseForm.SupportedLanguage == SupportedLanguage.VisualBasic
+				? (IAmbience)new VBNetAmbience()
 				: new CSharpAmbience();
+
+			// ReSharper disable CanBeReplacedWithTryCastAndCheckForNull
 			if (entity is IMethod)
-				return ambience.Convert(entity as IMethod);
+				return ambience.Convert((IMethod)entity);
 			if (entity is IProperty)
-				return ambience.Convert(entity as IProperty);
+				return ambience.Convert((IProperty)entity);
 			if (entity is IEvent)
-				return ambience.Convert(entity as IEvent);
+				return ambience.Convert((IEvent)entity);
 			if (entity is IField)
-				return ambience.Convert(entity as IField);
+				return ambience.Convert((IField)entity);
 			if (entity is IClass)
-				return ambience.Convert(entity as IClass);
+				return ambience.Convert((IClass)entity);
+			// ReSharper restore CanBeReplacedWithTryCastAndCheckForNull
+
 			// unknown entity:
 			return entity.ToString();
 		}
@@ -180,12 +175,15 @@ namespace Reflexil.Intellisense
 											reader.MoveToContent();
 											builder.Append(reader.HasValue ? reader.Value : reader.GetAttribute("cref"));
 										}
+
 										break;
 								}
+
 								break;
 						}
 					}
 				}
+
 				return builder.ToString();
 			}
 			catch (XmlException)

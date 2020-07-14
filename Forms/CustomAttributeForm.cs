@@ -1,4 +1,4 @@
-/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -19,8 +19,6 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#region Imports
-
 using System.ComponentModel;
 using System.Windows.Forms;
 using Mono.Cecil;
@@ -28,18 +26,12 @@ using System;
 using Mono.Collections.Generic;
 using Reflexil.Utils;
 
-#endregion
-
 namespace Reflexil.Forms
 {
 	public partial class CustomAttributeForm : Form
 	{
-		#region Properties
-
 		public ICustomAttributeProvider SelectedProvider { get; private set; }
-
 		public CustomAttribute SelectedAttribute { get; private set; }
-
 		public CustomAttribute WorkingAttribute { get; set; }
 
 		protected bool IsFormComplete
@@ -58,10 +50,6 @@ namespace Reflexil.Forms
 			}
 		}
 
-		#endregion
-
-		#region Methods
-
 		public CustomAttributeForm()
 		{
 			InitializeComponent();
@@ -79,7 +67,7 @@ namespace Reflexil.Forms
 			var value = argument.Value;
 
 			if (value is TypeReference)
-				value = module.Import(value as TypeReference);
+				value = CecilImporter.Import(module, value as TypeReference);
 
 			if (value is CustomAttributeArgument[])
 			{
@@ -92,7 +80,7 @@ namespace Reflexil.Forms
 			if (argument.Type.Module == null)
 				argument.Type = module.TypeSystem.LookupType(argument.Type.Namespace, argument.Type.Name);
 
-			return new CustomAttributeArgument(module.Import(argument.Type), value);
+			return new CustomAttributeArgument(CecilImporter.Import(module, argument.Type), value);
 		}
 
 		protected void FixCustomAttributeArguments(ModuleDefinition module, Collection<CustomAttributeArgument> arguments)
@@ -113,16 +101,12 @@ namespace Reflexil.Forms
 		{
 			var module = CecilHelper.GetModuleFromCustomAttributeProvider(SelectedProvider);
 
-			WorkingAttribute.Constructor = module.Import(Constructor.SelectedOperand);
+			WorkingAttribute.Constructor = CecilImporter.Import(module, Constructor.SelectedOperand);
 
 			FixCustomAttributeArguments(module, WorkingAttribute.ConstructorArguments);
 			FixCustomAttributeNamedArguments(module, WorkingAttribute.Fields);
 			FixCustomAttributeNamedArguments(module, WorkingAttribute.Properties);
 		}
-
-		#endregion
-
-		#region Events
 
 		private void ConstructorArguments_GridUpdated(object sender, EventArgs e)
 		{
@@ -156,7 +140,5 @@ namespace Reflexil.Forms
 				ErrorProvider.SetError(ConstructorPanel, string.Empty);
 			}
 		}
-
-		#endregion
 	}
 }

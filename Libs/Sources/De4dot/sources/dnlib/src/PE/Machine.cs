@@ -1,27 +1,6 @@
-/*
-    Copyright (C) 2012-2014 de4dot@gmail.com
+// dnlib: See LICENSE.txt for more info
 
-    Permission is hereby granted, free of charge, to any person obtaining
-    a copy of this software and associated documentation files (the
-    "Software"), to deal in the Software without restriction, including
-    without limitation the rights to use, copy, modify, merge, publish,
-    distribute, sublicense, and/or sell copies of the Software, and to
-    permit persons to whom the Software is furnished to do so, subject to
-    the following conditions:
-
-    The above copyright notice and this permission notice shall be
-    included in all copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/
-
-﻿namespace dnlib.PE {
+namespace dnlib.PE {
 	/// <summary>
 	/// IMAGE_FILE_HEADER.Machine enum
 	/// </summary>
@@ -86,5 +65,135 @@
 		ARM64		= 0xAA64,
 		/// <summary></summary>
 		CEE			= 0xC0EE,
+
+		// Search for IMAGE_FILE_MACHINE_NATIVE and IMAGE_FILE_MACHINE_NATIVE_OS_OVERRIDE here:
+		//		https://github.com/dotnet/coreclr/blob/master/src/inc/pedecoder.h
+		// Note that IMAGE_FILE_MACHINE_NATIVE_OS_OVERRIDE == 0 if it's Windows
+
+#pragma warning disable 1591 // Missing XML comment for publicly visible type or member
+		I386_Native_Apple = I386 ^ 0x4644,
+		AMD64_Native_Apple = AMD64 ^ 0x4644,
+		ARMNT_Native_Apple = ARMNT ^ 0x4644,
+		ARM64_Native_Apple = ARM64 ^ 0x4644,
+
+		I386_Native_FreeBSD = I386 ^ 0xADC4,
+		AMD64_Native_FreeBSD = AMD64 ^ 0xADC4,
+		ARMNT_Native_FreeBSD = ARMNT ^ 0xADC4,
+		ARM64_Native_FreeBSD = ARM64 ^ 0xADC4,
+
+		I386_Native_Linux = I386 ^ 0x7B79,
+		AMD64_Native_Linux = AMD64 ^ 0x7B79,
+		ARMNT_Native_Linux = ARMNT ^ 0x7B79,
+		ARM64_Native_Linux = ARM64 ^ 0x7B79,
+
+		I386_Native_NetBSD = I386 ^ 0x1993,
+		AMD64_Native_NetBSD = AMD64 ^ 0x1993,
+		ARMNT_Native_NetBSD = ARMNT ^ 0x1993,
+		ARM64_Native_NetBSD = ARM64 ^ 0x1993,
+#pragma warning restore 1591 // Missing XML comment for publicly visible type or member
+	}
+
+	/// <summary>
+	/// Extensions
+	/// </summary>
+	public static class MachineExtensions {
+		/// <summary>
+		/// Checks if <paramref name="machine"/> is a 64-bit machine
+		/// </summary>
+		/// <param name="machine">Machine</param>
+		/// <returns></returns>
+		public static bool Is64Bit(this Machine machine) {
+			switch (machine) {
+			case Machine.IA64:
+
+			case Machine.AMD64:
+			case Machine.AMD64_Native_Apple:
+			case Machine.AMD64_Native_FreeBSD:
+			case Machine.AMD64_Native_Linux:
+			case Machine.AMD64_Native_NetBSD:
+
+			case Machine.ARM64:
+			case Machine.ARM64_Native_Apple:
+			case Machine.ARM64_Native_FreeBSD:
+			case Machine.ARM64_Native_Linux:
+			case Machine.ARM64_Native_NetBSD:
+				return true;
+
+			default:
+				return false;
+			}
+		}
+
+		/// <summary>
+		/// Checks if <paramref name="machine"/> is <see cref="Machine.I386"/>, <see cref="Machine.I386_Native_Apple"/>, etc...
+		/// </summary>
+		/// <param name="machine">Machine</param>
+		/// <returns></returns>
+		public static bool IsI386(this Machine machine) {
+			switch (machine) {
+			case Machine.I386:
+			case Machine.I386_Native_Apple:
+			case Machine.I386_Native_FreeBSD:
+			case Machine.I386_Native_Linux:
+			case Machine.I386_Native_NetBSD:
+				return true;
+			default:
+				return false;
+			}
+		}
+
+		/// <summary>
+		/// Checks if <paramref name="machine"/> is <see cref="Machine.AMD64"/>, <see cref="Machine.AMD64_Native_Apple"/>, etc...
+		/// </summary>
+		/// <param name="machine">Machine</param>
+		/// <returns></returns>
+		public static bool IsAMD64(this Machine machine) {
+			switch (machine) {
+			case Machine.AMD64:
+			case Machine.AMD64_Native_Apple:
+			case Machine.AMD64_Native_FreeBSD:
+			case Machine.AMD64_Native_Linux:
+			case Machine.AMD64_Native_NetBSD:
+				return true;
+			default:
+				return false;
+			}
+		}
+
+		/// <summary>
+		/// Checks if <paramref name="machine"/> is <see cref="Machine.ARMNT"/>, <see cref="Machine.ARMNT_Native_Apple"/>, etc...
+		/// </summary>
+		/// <param name="machine">Machine</param>
+		/// <returns></returns>
+		public static bool IsARMNT(this Machine machine) {
+			switch (machine) {
+			case Machine.ARMNT:
+			case Machine.ARMNT_Native_Apple:
+			case Machine.ARMNT_Native_FreeBSD:
+			case Machine.ARMNT_Native_Linux:
+			case Machine.ARMNT_Native_NetBSD:
+				return true;
+			default:
+				return false;
+			}
+		}
+
+		/// <summary>
+		/// Checks if <paramref name="machine"/> is <see cref="Machine.ARM64"/>, <see cref="Machine.ARM64_Native_Apple"/>, etc...
+		/// </summary>
+		/// <param name="machine">Machine</param>
+		/// <returns></returns>
+		public static bool IsARM64(this Machine machine) {
+			switch (machine) {
+			case Machine.ARM64:
+			case Machine.ARM64_Native_Apple:
+			case Machine.ARM64_Native_FreeBSD:
+			case Machine.ARM64_Native_Linux:
+			case Machine.ARM64_Native_NetBSD:
+				return true;
+			default:
+				return false;
+			}
+		}
 	}
 }

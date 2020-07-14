@@ -1,33 +1,10 @@
-﻿/*
-    Copyright (C) 2012-2014 de4dot@gmail.com
-
-    Permission is hereby granted, free of charge, to any person obtaining
-    a copy of this software and associated documentation files (the
-    "Software"), to deal in the Software without restriction, including
-    without limitation the rights to use, copy, modify, merge, publish,
-    distribute, sublicense, and/or sell copies of the Software, and to
-    permit persons to whom the Software is furnished to do so, subject to
-    the following conditions:
-
-    The above copyright notice and this permission notice shall be
-    included in all copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/
+// dnlib: See LICENSE.txt for more info
 
 using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 using SR = System.Reflection;
-using System.IO;
-using dnlib.Threading;
 
 namespace dnlib.DotNet.Emit {
 	/// <summary>
@@ -46,13 +23,15 @@ namespace dnlib.DotNet.Emit {
 		static readonly Dictionary<IntPtr, Type> addrToType = new Dictionary<IntPtr, Type>();
 		static ModuleBuilder moduleBuilder;
 		static int numNewTypes;
-#if THREAD_SAFE
-		static readonly Lock theLock = Lock.Create();
-#endif
+		static object lockObj = new object();
 
 		static MethodTableToTypeConverter() {
 			if (ptrFieldInfo == null) {
+#if NETSTANDARD
+				var asmb = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("DynAsm"), AssemblyBuilderAccess.Run);
+#else
 				var asmb = AppDomain.CurrentDomain.DefineDynamicAssembly(new AssemblyName("DynAsm"), AssemblyBuilderAccess.Run);
+#endif
 				moduleBuilder = asmb.DefineDynamicModule("DynMod");
 			}
 		}
@@ -63,19 +42,14 @@ namespace dnlib.DotNet.Emit {
 		/// <param name="address">Address of type</param>
 		/// <returns>The <see cref="Type"/> or <c>null</c></returns>
 		public static Type Convert(IntPtr address) {
-			Type type;
-#if THREAD_SAFE
-			theLock.EnterWriteLock(); try {
-#endif
-			if (addrToType.TryGetValue(address, out type))
-				return type;
+			lock (lockObj) {
+				if (addrToType.TryGetValue(address, out var type))
+					return type;
 
-			type = GetTypeNET20(address) ?? GetTypeUsingTypeBuilder(address);
-			addrToType[address] = type;
-			return type;
-#if THREAD_SAFE
-			} finally { theLock.ExitWriteLock(); }
-#endif
+				type = GetTypeNET20(address) ?? GetTypeUsingTypeBuilder(address);
+				addrToType[address] = type;
+				return type;
+			}
 		}
 
 		static Type GetTypeUsingTypeBuilder(IntPtr address) {
@@ -83,7 +57,7 @@ namespace dnlib.DotNet.Emit {
 				return null;
 
 			var tb = moduleBuilder.DefineType(GetNextTypeName());
-			var mb = tb.DefineMethod(METHOD_NAME, SR.MethodAttributes.Static, typeof(void), new Type[0]);
+			var mb = tb.DefineMethod(METHOD_NAME, SR.MethodAttributes.Static, typeof(void), Array2.Empty<Type>());
 
 			try {
 				if (setMethodBodyMethodInfo != null)
@@ -99,12 +73,16 @@ namespace dnlib.DotNet.Emit {
 
 		// .NET 4.5 and later have the documented SetMethodBody() method.
 		static Type GetTypeNET45(TypeBuilder tb, MethodBuilder mb, IntPtr address) {
-			byte[] code = new byte[1] { 0x2A };
+			var code = new byte[1] { 0x2A };
 			int maxStack = 8;
-			byte[] locals = GetLocalSignature(address);
+			var locals = GetLocalSignature(address);
 			setMethodBodyMethodInfo.Invoke(mb, new object[5] { code, maxStack, locals, null, null });
-
-			var createdMethod = tb.CreateType().GetMethod(METHOD_NAME, BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance);
+#if NETSTANDARD
+			var type = tb.CreateTypeInfo();
+#else
+			var type = tb.CreateType();
+#endif
+			var createdMethod = type.GetMethod(METHOD_NAME, BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance);
 			return createdMethod.GetMethodBody().LocalVariables[0].LocalType;
 		}
 
@@ -122,8 +100,12 @@ namespace dnlib.DotNet.Emit {
 			sigDoneFieldInfo.SetValue(sigHelper, true);
 			currSigFieldInfo.SetValue(sigHelper, locals.Length);
 			signatureFieldInfo.SetValue(sigHelper, locals);
-
-			var createdMethod = tb.CreateType().GetMethod(METHOD_NAME, BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance);
+#if NETSTANDARD
+			var type = tb.CreateTypeInfo();
+#else
+			var type = tb.CreateType();
+#endif
+			var createdMethod = type.GetMethod(METHOD_NAME, BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance);
 			return createdMethod.GetMethodBody().LocalVariables[0].LocalType;
 		}
 
@@ -136,9 +118,7 @@ namespace dnlib.DotNet.Emit {
 			return Type.GetTypeFromHandle((RuntimeTypeHandle)th);
 		}
 
-		static string GetNextTypeName() {
-			return string.Format("Type{0}", numNewTypes++);
-		}
+		static string GetNextTypeName() => "Type" + numNewTypes++.ToString();
 
 		static byte[] GetLocalSignature(IntPtr mtAddr) {
 			ulong mtValue = (ulong)mtAddr.ToInt64();

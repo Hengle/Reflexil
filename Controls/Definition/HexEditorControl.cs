@@ -37,22 +37,17 @@ namespace Reflexil.Editors
 				_formGoto.Dispose();
 				_formGoto = null;
 			}
+
 			_formGoto = new HexGotoForm();
 			base.Refresh();
 			Position_Changed(this, EventArgs.Empty);
 		}
 
-		/// <summary>
-		/// Updates the size status label
-		/// </summary>
 		private void UpdateSizeStatus()
 		{
 			sizeLabel.Text = hexBox.ByteProvider == null ? string.Empty : ByteHelper.GetDisplayBytes(hexBox.ByteProvider.Length);
 		}
 
-		/// <summary>
-		/// Manages enabling or disabling of menu items and toolstrip buttons.
-		/// </summary>
 		private void ManageAbility()
 		{
 			if (hexBox.ByteProvider == null)
@@ -81,9 +76,6 @@ namespace Reflexil.Editors
 			ManageAbilityForCopyAndPaste();
 		}
 
-		/// <summary>
-		/// Manages enabling or disabling of menustrip items and toolstrip buttons for copy and paste
-		/// </summary>
 		private void ManageAbilityForCopyAndPaste()
 		{
 			copyHexStringToolStripMenuItem.Enabled =
@@ -94,9 +86,6 @@ namespace Reflexil.Editors
 			pasteHexToolStripMenuItem.Enabled = pasteHexToolStripMenuItem1.Enabled = hexBox.CanPasteHex();
 		}
 
-		/// <summary>
-		/// Shows the open file dialog.
-		/// </summary>
 		private void OpenFile()
 		{
 			if (openFileDialog.ShowDialog() == DialogResult.OK)
@@ -105,10 +94,6 @@ namespace Reflexil.Editors
 			}
 		}
 
-		/// <summary>
-		/// Bind a ressource.
-		/// </summary>
-		/// <param name="resource">resource to bind</param>
 		public void Bind(EmbeddedResource resource)
 		{
 			CleanUp();
@@ -133,10 +118,6 @@ namespace Reflexil.Editors
 		}
 
 
-		/// <summary>
-		/// Opens a file.
-		/// </summary>
-		/// <param name="fileName">the file name of the file to open</param>
 		public void OpenFile(string fileName)
 		{
 			if (!File.Exists(fileName))
@@ -144,7 +125,6 @@ namespace Reflexil.Editors
 				MessageBox.Show(@"Unable to find file");
 				return;
 			}
-
 
 			if (hexBox.ByteProvider == null)
 				return;
@@ -176,9 +156,6 @@ namespace Reflexil.Editors
 			}
 		}
 
-		/// <summary>
-		/// Saves to file
-		/// </summary>
 		private void SaveFile()
 		{
 			if (_resource != null)
@@ -190,9 +167,6 @@ namespace Reflexil.Editors
 			}
 		}
 
-		/// <summary>
-		/// Saves to file
-		/// </summary>
 		private void SaveFile(string fileName)
 		{
 			if (hexBox.ByteProvider == null)
@@ -226,21 +200,15 @@ namespace Reflexil.Editors
 			_resource = null;
 		}
 
-		/// <summary>
-		/// Opens the Find dialog
-		/// </summary>
 		private void Find()
 		{
-			if (_formFind.ShowDialog() == DialogResult.OK)
-			{
-				_findBuffer = _formFind.GetFindBytes();
-				FindNext();
-			}
+			if (_formFind.ShowDialog() != DialogResult.OK)
+				return;
+
+			_findBuffer = _formFind.GetFindBytes();
+			FindNext();
 		}
 
-		/// <summary>
-		/// Find next match
-		/// </summary>
 		private void FindNext()
 		{
 			if (_findBuffer.Length == 0)
@@ -268,8 +236,7 @@ namespace Reflexil.Editors
 
 			if (res == -1) // -1 = no match
 			{
-				MessageBox.Show(@"End of data reached", string.Empty,
-					MessageBoxButtons.OK, MessageBoxIcon.Information);
+				MessageBox.Show(@"End of data reached", string.Empty, MessageBoxButtons.OK, MessageBoxIcon.Information);
 			}
 			else if (res == -2) // -2 = find was aborted
 			{
@@ -284,33 +251,20 @@ namespace Reflexil.Editors
 			ManageAbility();
 		}
 
-		/// <summary>
-		/// Aborts the current find process
-		/// </summary>
 		private void FormFindCancel_Closed(object sender, EventArgs e)
 		{
 			hexBox.AbortFind();
 		}
 
-		/// <summary>
-		/// Put focus back to the cancel form.
-		/// </summary>
-		/*void FocusToFormFindCancel(object sender, EventArgs e)
-        {
-            _formFindCancel.Focus();
-        }*/
-		/// <summary>
-		/// Displays the goto byte dialog.
-		/// </summary>
 		private void Goto()
 		{
 			_formGoto.SetDefaultValue(hexBox.SelectionStart);
-			if (_formGoto.ShowDialog() == DialogResult.OK)
-			{
-				hexBox.SelectionStart = Math.Min(_formGoto.GetByteIndex(), hexBox.ByteProvider.Length - 1);
-				hexBox.SelectionLength = 1;
-				hexBox.Focus();
-			}
+			if (_formGoto.ShowDialog() != DialogResult.OK)
+				return;
+
+			hexBox.SelectionStart = Math.Min(_formGoto.GetByteIndex(), hexBox.ByteProvider.Length - 1);
+			hexBox.SelectionLength = 1;
+			hexBox.Focus();
 		}
 
 		private void hexBox_Copied(object sender, EventArgs e)
@@ -337,7 +291,7 @@ namespace Reflexil.Editors
 		{
 			offsetLabel.Text = string.Format("Offset {0}",
 				OperandDisplayHelper.Changebase(
-					Math.Max(0, (hexBox.CurrentLine - 1)*hexBox.BytesPerLine + hexBox.CurrentPositionInLine - 1)
+					Math.Max(0, (hexBox.CurrentLine - 1) * hexBox.BytesPerLine + hexBox.CurrentPositionInLine - 1)
 						.ToString(CultureInfo.InvariantCulture), ENumericBase.Dec, Settings.Default.OperandDisplayBase));
 		}
 

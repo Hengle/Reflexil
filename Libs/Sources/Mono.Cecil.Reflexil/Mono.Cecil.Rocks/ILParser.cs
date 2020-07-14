@@ -1,29 +1,11 @@
 //
-// ILParser.cs
-//
 // Author:
 //   Jb Evain (jbevain@gmail.com)
 //
-// Copyright (c) 2008 - 2011 Jb Evain
+// Copyright (c) 2008 - 2015 Jb Evain
+// Copyright (c) 2008 - 2011 Novell, Inc.
 //
-// Permission is hereby granted, free of charge, to any person obtaining
-// a copy of this software and associated documentation files (the
-// "Software"), to deal in the Software without restriction, including
-// without limitation the rights to use, copy, modify, merge, publish,
-// distribute, sublicense, and/or sell copies of the Software, and to
-// permit persons to whom the Software is furnished to do so, subject to
-// the following conditions:
-//
-// The above copyright notice and this permission notice shall be
-// included in all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-// LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-// OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-// WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+// Licensed under the MIT/X11 license.
 //
 
 using System;
@@ -62,6 +44,7 @@ namespace Mono.Cecil.Rocks {
 
 		class ParseContext {
 			public CodeReader Code { get; set; }
+			public int Position { get; set; }
 			public MetadataReader Metadata { get; set; }
 			public Collection<VariableDefinition> Variables { get; set; }
 			public IILVisitor Visitor { get; set; }
@@ -76,10 +59,16 @@ namespace Mono.Cecil.Rocks {
 			if (!method.HasBody || !method.HasImage)
 				throw new ArgumentException ();
 
+			method.Module.Read (method, (m, _) => {
+				ParseMethod (m, visitor);
+				return true;
+			});
+		}
+
+		static void ParseMethod (MethodDefinition method, IILVisitor visitor)
+		{
 			var context = CreateContext (method, visitor);
 			var code = context.Code;
-
-			code.MoveTo (method.RVA);
 
 			var flags = code.ReadByte ();
 
@@ -89,20 +78,24 @@ namespace Mono.Cecil.Rocks {
 				ParseCode (code_size, context);
 				break;
 			case 0x3: // fat
-				code.position--;
+				code.Advance (-1);
 				ParseFatMethod (context);
 				break;
 			default:
 				throw new NotSupportedException ();
 			}
+
+			code.MoveBackTo (context.Position);
 		}
 
 		static ParseContext CreateContext (MethodDefinition method, IILVisitor visitor)
 		{
-			var code = method.Module.Read (method, (_, reader) => new CodeReader (reader.image.MetadataSection, reader));
+			var code = method.Module.Read (method, (_, reader) => reader.code);
+			var position = code.MoveTo (method);
 
 			return new ParseContext {
 				Code = code,
+				Position = position,
 				Metadata = code.reader,
 				Visitor = visitor,
 			};
@@ -128,10 +121,10 @@ namespace Mono.Cecil.Rocks {
 			var metadata = context.Metadata;
 			var visitor = context.Visitor;
 
-			var start = code.position;
+			var start = code.Position;
 			var end = start + code_size;
 
-			while (code.position < end) {
+			while (code.Position < end) {
 				var il_opcode = code.ReadByte ();
 				var opcode = il_opcode != 0xfe
 					? OpCodes.OneByteOpCode [il_opcode]

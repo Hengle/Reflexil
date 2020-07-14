@@ -1,27 +1,5 @@
-/*
-    Copyright (C) 2012-2014 de4dot@gmail.com
+// dnlib: See LICENSE.txt for more info
 
-    Permission is hereby granted, free of charge, to any person obtaining
-    a copy of this software and associated documentation files (the
-    "Software"), to deal in the Software without restriction, including
-    without limitation the rights to use, copy, modify, merge, publish,
-    distribute, sublicense, and/or sell copies of the Software, and to
-    permit persons to whom the Software is furnished to do so, subject to
-    the following conditions:
-
-    The above copyright notice and this permission notice shall be
-    included in all copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/
-
-﻿using System.IO;
 using dnlib.IO;
 using dnlib.PE;
 
@@ -29,28 +7,24 @@ namespace dnlib.DotNet.Writer {
 	/// <summary>
 	/// Strong name signature chunk
 	/// </summary>
-	public sealed class StrongNameSignature : IChunk {
+	public sealed class StrongNameSignature : IReuseChunk {
 		FileOffset offset;
 		RVA rva;
 		int size;
 
 		/// <inheritdoc/>
-		public FileOffset FileOffset {
-			get { return offset; }
-		}
+		public FileOffset FileOffset => offset;
 
 		/// <inheritdoc/>
-		public RVA RVA {
-			get { return rva; }
-		}
+		public RVA RVA => rva;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="size">Size of strong name signature</param>
-		public StrongNameSignature(int size) {
-			this.size = size;
-		}
+		public StrongNameSignature(int size) => this.size = size;
+
+		bool IReuseChunk.CanReuse(RVA origRva, uint origSize) => (uint)size <= origSize;
 
 		/// <inheritdoc/>
 		public void SetOffset(FileOffset offset, RVA rva) {
@@ -59,18 +33,12 @@ namespace dnlib.DotNet.Writer {
 		}
 
 		/// <inheritdoc/>
-		public uint GetFileLength() {
-			return (uint)this.size;
-		}
+		public uint GetFileLength() => (uint)size;
 
 		/// <inheritdoc/>
-		public uint GetVirtualSize() {
-			return GetFileLength();
-		}
+		public uint GetVirtualSize() => GetFileLength();
 
 		/// <inheritdoc/>
-		public void WriteTo(BinaryWriter writer) {
-			writer.WriteZeros(size);
-		}
+		public void WriteTo(DataWriter writer) => writer.WriteZeroes(size);
 	}
 }

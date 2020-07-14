@@ -1,35 +1,14 @@
-/*
-    Copyright (C) 2012-2014 de4dot@gmail.com
+// dnlib: See LICENSE.txt for more info
 
-    Permission is hereby granted, free of charge, to any person obtaining
-    a copy of this software and associated documentation files (the
-    "Software"), to deal in the Software without restriction, including
-    without limitation the rights to use, copy, modify, merge, publish,
-    distribute, sublicense, and/or sell copies of the Software, and to
-    permit persons to whom the Software is furnished to do so, subject to
-    the following conditions:
-
-    The above copyright notice and this permission notice shall be
-    included in all copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/
-
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using dnlib.Utils;
-using dnlib.Threading;
+using System;
 
 namespace dnlib.DotNet {
 	/// <summary>
 	/// Stores <see cref="CustomAttribute"/>s
 	/// </summary>
-	public class CustomAttributeCollection : LazyList<CustomAttribute> {
+	public class CustomAttributeCollection : LazyList<CustomAttribute, object> {
 		/// <summary>
 		/// Default constructor
 		/// </summary>
@@ -42,7 +21,7 @@ namespace dnlib.DotNet {
 		/// <param name="length">Initial length of the list</param>
 		/// <param name="context">Context passed to <paramref name="readOriginalValue"/></param>
 		/// <param name="readOriginalValue">Delegate instance that returns original values</param>
-		internal CustomAttributeCollection(int length, object context, MFunc<object, uint, CustomAttribute> readOriginalValue)
+		public CustomAttributeCollection(int length, object context, Func<object, int, CustomAttribute> readOriginalValue)
 			: base(length, context, readOriginalValue) {
 		}
 
@@ -51,19 +30,17 @@ namespace dnlib.DotNet {
 		/// </summary>
 		/// <param name="fullName">Full name of custom attribute type</param>
 		/// <returns><c>true</c> if the custom attribute type is present, <c>false</c> otherwise</returns>
-		public bool IsDefined(string fullName) {
-			return Find(fullName) != null;
-		}
+		public bool IsDefined(string fullName) => Find(fullName) != null;
 
 		/// <summary>
 		/// Removes all custom attributes of a certain type
 		/// </summary>
 		/// <param name="fullName">Full name of custom attribute type that should be removed</param>
 		public void RemoveAll(string fullName) {
-			this.IterateAllReverse((tsList, index, value) => {
-				if (value.TypeFullName == fullName)
-					RemoveAt_NoLock(index);
-			});
+			for (int i = Count - 1; i >= 0; i--) {
+				if (this[i].TypeFullName == fullName)
+					RemoveAt(i);
+			}
 		}
 
 		/// <summary>
@@ -72,7 +49,7 @@ namespace dnlib.DotNet {
 		/// <param name="fullName">Full name of custom attribute type</param>
 		/// <returns>A <see cref="CustomAttribute"/> or <c>null</c> if it wasn't found</returns>
 		public CustomAttribute Find(string fullName) {
-			foreach (var ca in this.GetSafeEnumerable()) {
+			foreach (var ca in this) {
 				if (ca != null && ca.TypeFullName == fullName)
 					return ca;
 			}
@@ -86,7 +63,7 @@ namespace dnlib.DotNet {
 		/// <param name="fullName">Full name of custom attribute type</param>
 		/// <returns>All <see cref="CustomAttribute"/>s of the requested type</returns>
 		public IEnumerable<CustomAttribute> FindAll(string fullName) {
-			foreach (var ca in this.GetSafeEnumerable()) {
+			foreach (var ca in this) {
 				if (ca != null && ca.TypeFullName == fullName)
 					yield return ca;
 			}
@@ -97,9 +74,7 @@ namespace dnlib.DotNet {
 		/// </summary>
 		/// <param name="attrType">Custom attribute type</param>
 		/// <returns>The first <see cref="CustomAttribute"/> found or <c>null</c> if none found</returns>
-		public CustomAttribute Find(IType attrType) {
-			return Find(attrType, 0);
-		}
+		public CustomAttribute Find(IType attrType) => Find(attrType, 0);
 
 		/// <summary>
 		/// Finds a custom attribute
@@ -109,7 +84,7 @@ namespace dnlib.DotNet {
 		/// <returns>The first <see cref="CustomAttribute"/> found or <c>null</c> if none found</returns>
 		public CustomAttribute Find(IType attrType, SigComparerOptions options) {
 			var comparer = new SigComparer(options);
-			foreach (var ca in this.GetSafeEnumerable()) {
+			foreach (var ca in this) {
 				if (comparer.Equals(ca.AttributeType, attrType))
 					return ca;
 			}
@@ -121,9 +96,7 @@ namespace dnlib.DotNet {
 		/// </summary>
 		/// <param name="attrType">Custom attribute type</param>
 		/// <returns>All <see cref="CustomAttribute"/>s of the requested type</returns>
-		public IEnumerable<CustomAttribute> FindAll(IType attrType) {
-			return FindAll(attrType, 0);
-		}
+		public IEnumerable<CustomAttribute> FindAll(IType attrType) => FindAll(attrType, 0);
 
 		/// <summary>
 		/// Finds all custom attributes of a certain type
@@ -133,7 +106,7 @@ namespace dnlib.DotNet {
 		/// <returns>All <see cref="CustomAttribute"/>s of the requested type</returns>
 		public IEnumerable<CustomAttribute> FindAll(IType attrType, SigComparerOptions options) {
 			var comparer = new SigComparer(options);
-			foreach (var ca in this.GetSafeEnumerable()) {
+			foreach (var ca in this) {
 				if (comparer.Equals(ca.AttributeType, attrType))
 					yield return ca;
 			}

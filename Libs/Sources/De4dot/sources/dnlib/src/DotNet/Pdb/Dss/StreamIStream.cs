@@ -1,25 +1,4 @@
-﻿/*
-    Copyright (C) 2012-2014 de4dot@gmail.com
-
-    Permission is hereby granted, free of charge, to any person obtaining
-    a copy of this software and associated documentation files (the
-    "Software"), to deal in the Software without restriction, including
-    without limitation the rights to use, copy, modify, merge, publish,
-    distribute, sublicense, and/or sell copies of the Software, and to
-    permit persons to whom the Software is furnished to do so, subject to
-    the following conditions:
-
-    The above copyright notice and this permission notice shall be
-    included in all copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/
+// dnlib: See LICENSE.txt for more info
 
 using System;
 using System.IO;
@@ -51,9 +30,7 @@ namespace dnlib.DotNet.Pdb.Dss {
 		/// <param name="stream">Source stream</param>
 		/// <param name="name">Name of original file or <c>null</c> if unknown.</param>
 		public StreamIStream(Stream stream, string name) {
-			if (stream == null)
-				throw new ArgumentNullException("stream");
-			this.stream = stream;
+			this.stream = stream ?? throw new ArgumentNullException(nameof(stream));
 			this.name = name ?? string.Empty;
 		}
 
@@ -64,9 +41,7 @@ namespace dnlib.DotNet.Pdb.Dss {
 		}
 
 		/// <inheritdoc/>
-		public void Commit(int grfCommitFlags) {
-			stream.Flush();
-		}
+		public void Commit(int grfCommitFlags) => stream.Flush();
 
 		/// <inheritdoc/>
 		public void CopyTo(IStream pstm, long cb, IntPtr pcbRead, IntPtr pcbWritten) {
@@ -81,17 +56,16 @@ namespace dnlib.DotNet.Pdb.Dss {
 
 			var buffer = new byte[sizeToRead];
 			Read(buffer, sizeToRead, pcbRead);
-			if (pcbRead != null)
+			if (pcbRead != IntPtr.Zero)
 				Marshal.WriteInt64(pcbRead, Marshal.ReadInt32(pcbRead));
 			pstm.Write(buffer, buffer.Length, pcbWritten);
-			if (pcbWritten != null)
+			if (pcbWritten != IntPtr.Zero)
 				Marshal.WriteInt64(pcbWritten, Marshal.ReadInt32(pcbWritten));
 		}
 
 		/// <inheritdoc/>
-		public void LockRegion(long libOffset, long cb, int dwLockType) {
+		public void LockRegion(long libOffset, long cb, int dwLockType) =>
 			Marshal.ThrowExceptionForHR(STG_E_INVALIDFUNCTION);
-		}
 
 		/// <inheritdoc/>
 		public void Read(byte[] pv, int cb, IntPtr pcbRead) {
@@ -135,9 +109,7 @@ namespace dnlib.DotNet.Pdb.Dss {
 		}
 
 		/// <inheritdoc/>
-		public void SetSize(long libNewSize) {
-			stream.SetLength(libNewSize);
-		}
+		public void SetSize(long libNewSize) => stream.SetLength(libNewSize);
 
 		enum STATFLAG {
 			DEFAULT = 0,
@@ -173,14 +145,13 @@ namespace dnlib.DotNet.Pdb.Dss {
 		}
 
 		/// <inheritdoc/>
-		public void UnlockRegion(long libOffset, long cb, int dwLockType) {
+		public void UnlockRegion(long libOffset, long cb, int dwLockType) =>
 			Marshal.ThrowExceptionForHR(STG_E_INVALIDFUNCTION);
-		}
 
 		/// <inheritdoc/>
 		public void Write(byte[] pv, int cb, IntPtr pcbWritten) {
 			stream.Write(pv, 0, cb);
-			if (pcbWritten != null)
+			if (pcbWritten != IntPtr.Zero)
 				Marshal.WriteInt32(pcbWritten, cb);
 		}
 	}

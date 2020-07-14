@@ -1,4 +1,4 @@
-/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -19,8 +19,6 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#region Imports
-
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -34,22 +32,14 @@ using Reflexil.Utils;
 using Reflexil.Wrappers;
 using Reflexil.Plugins;
 
-#endregion
-
 namespace Reflexil.Editors
 {
 	public partial class GridControl<T, TD> : UserControl
 	{
-		#region Fields
-
 		private Rectangle _dragBox;
 		private int _dragIndex;
 		private int _firstRowIndex;
 		private int _hScrollOffset;
-
-		#endregion
-
-		#region Properties
 
 		public bool ReadOnly { get; set; }
 		public TD OwnerDefinition { get; protected set; }
@@ -72,18 +62,13 @@ namespace Reflexil.Editors
 				{
 					for (var i = 0; i < Grid.SelectedRows.Count; i++)
 					{
-						result.Add((T) (Grid.SelectedRows[i].DataBoundItem));
+						result.Add((T)(Grid.SelectedRows[i].DataBoundItem));
 					}
 				}
+
 				return result.ToArray();
 			}
 		}
-
-		#endregion
-
-		#region Methods
-
-		#region Scrolling
 
 		public void SaveScrollBarPositions()
 		{
@@ -97,12 +82,9 @@ namespace Reflexil.Editors
 			{
 				Grid.FirstDisplayedScrollingRowIndex = _firstRowIndex;
 			}
+
 			Grid.HorizontalScrollingOffset = _hScrollOffset;
 		}
-
-		#endregion
-
-		#region Drag&Drop
 
 		private void Grid_MouseDown(object sender, MouseEventArgs e)
 		{
@@ -113,7 +95,7 @@ namespace Reflexil.Editors
 			if (_dragIndex != -1)
 			{
 				var dragSize = SystemInformation.DragSize;
-				_dragBox = new Rectangle(new Point(e.X - (dragSize.Width/2), e.Y - (dragSize.Height/2)), dragSize);
+				_dragBox = new Rectangle(new Point(e.X - (dragSize.Width / 2), e.Y - (dragSize.Height / 2)), dragSize);
 			}
 			else
 			{
@@ -149,7 +131,7 @@ namespace Reflexil.Editors
 			if (e.Effect != DragDropEffects.Move || rowindex < 0 || rowindex >= grid.Rows.Count)
 				return;
 
-			var sourceRow = e.Data.GetData(typeof (DataGridViewRow)) as DataGridViewRow;
+			var sourceRow = e.Data.GetData(typeof(DataGridViewRow)) as DataGridViewRow;
 			var targetRow = grid.Rows[rowindex];
 
 			DoDragDrop(sender, sourceRow, targetRow, e);
@@ -163,8 +145,6 @@ namespace Reflexil.Editors
 		protected virtual void DoDragDrop(object sender, DataGridViewRow sourceRow, DataGridViewRow targetRow, DragEventArgs e)
 		{
 		}
-
-		#endregion
 
 		public GridControl()
 		{
@@ -187,10 +167,6 @@ namespace Reflexil.Editors
 		{
 			BindingSource.ResetBindings(false);
 		}
-
-		#endregion
-
-		#region Events
 
 		public delegate void GridUpdatedEventHandler(object sender, EventArgs e);
 
@@ -221,17 +197,12 @@ namespace Reflexil.Editors
 		{
 		}
 
-		#endregion
-
-		#region Grid
-
 		private void Grid_RowPostPaint(object sender, DataGridViewRowPostPaintEventArgs e)
 		{
-			var grid = (DataGridView) sender;
-			string strRowNumber = OperandDisplayHelper.Changebase(e.RowIndex.ToString(CultureInfo.InvariantCulture),
-				ENumericBase.Dec, Settings.Default.RowIndexDisplayBase);
-			string strRowCount = OperandDisplayHelper.Changebase(grid.RowCount.ToString(CultureInfo.InvariantCulture),
-				ENumericBase.Dec, Settings.Default.RowIndexDisplayBase);
+			var grid = (DataGridView)sender;
+			var strRowNumber = OperandDisplayHelper.Changebase(e.RowIndex.ToString(CultureInfo.InvariantCulture), ENumericBase.Dec, Settings.Default.RowIndexDisplayBase);
+			var strRowCount = OperandDisplayHelper.Changebase(grid.RowCount.ToString(CultureInfo.InvariantCulture), ENumericBase.Dec,
+				Settings.Default.RowIndexDisplayBase);
 
 			while (strRowNumber.Length < strRowCount.Length)
 			{
@@ -246,63 +217,63 @@ namespace Reflexil.Editors
 			}
 
 			var b = SystemBrushes.ControlText;
-			e.Graphics.DrawString(strRowNumber, grid.Font, b, e.RowBounds.Location.X + 15,
-				e.RowBounds.Location.Y + ((e.RowBounds.Height - size.Height)/2));
+			e.Graphics.DrawString(strRowNumber, grid.Font, b, e.RowBounds.Location.X + 15, e.RowBounds.Location.Y + (e.RowBounds.Height - size.Height) / 2);
 		}
 
 		protected virtual void Grid_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
 		{
-			if ((e.Value) is OpCode)
+			if (e.Value is OpCode)
 			{
-				Grid.Rows[e.RowIndex].Cells[e.ColumnIndex].ToolTipText = PluginFactory.GetInstance().GetOpcodeDesc((OpCode) e.Value);
+				Grid.Rows[e.RowIndex].Cells[e.ColumnIndex].ToolTipText = PluginFactory.GetInstance().GetOpcodeDesc((OpCode)e.Value);
 			}
 			else if (e.Value is MethodDefinition)
 			{
-				var mdef = e.Value as MethodDefinition;
+				var mdef = (MethodDefinition)e.Value;
 				Grid.Rows[e.RowIndex].Cells[e.ColumnIndex].ToolTipText = String.Format("RVA: {0}", mdef.RVA);
 			}
 			else if (e.Value is TypeReference && Grid.Rows[e.RowIndex].DataBoundItem is CustomAttributeArgument)
 			{
 				// Hack to display terminal attribute type (can be wrapped)
-				var argument = (CustomAttributeArgument) Grid.Rows[e.RowIndex].DataBoundItem;
+				var argument = (CustomAttributeArgument)Grid.Rows[e.RowIndex].DataBoundItem;
 				if (!(argument.Value is CustomAttributeArgument))
 					return;
 
-				var wrappedargument = (CustomAttributeArgument) argument.Value;
+				var wrappedargument = (CustomAttributeArgument)argument.Value;
 				e.Value = wrappedargument.Type;
 			}
 			else if (e.Value is CustomAttributeArgument)
 			{
-				e.Value = OperandDisplayHelper.ToString((CustomAttributeArgument) e.Value);
+				e.Value = OperandDisplayHelper.ToString((CustomAttributeArgument)e.Value);
 			}
 			else if (e.Value is CustomAttributeArgument[])
 			{
-				e.Value = OperandDisplayHelper.ToString(e.Value as CustomAttributeArgument[]);
+				e.Value = OperandDisplayHelper.ToString((CustomAttributeArgument[])e.Value);
 			}
 			else if (OwnerDefinition is MethodDefinition)
 			{
-				if ((e.Value is Int16 || e.Value is Int32 || e.Value is Int64 || e.Value is SByte)
-				    || (e.Value is UInt16 || e.Value is UInt32 || e.Value is UInt64 || e.Value is Byte))
+				if ((e.Value is short || e.Value is int || e.Value is long || e.Value is sbyte)
+				    || (e.Value is ushort || e.Value is uint || e.Value is ulong || e.Value is byte))
 				{
 					var tipbuilder = new StringBuilder();
-					var values = Enum.GetValues(typeof (ENumericBase));
+					var values = Enum.GetValues(typeof(ENumericBase));
 					for (var i = 0; i < values.Length; i++)
 					{
 						if (i > 0)
 						{
 							tipbuilder.AppendLine();
 						}
-						var item = (ENumericBase) values.GetValue(i);
+
+						var item = (ENumericBase)values.GetValue(i);
 						tipbuilder.Append(item);
 						tipbuilder.Append(": ");
 						tipbuilder.Append(OperandDisplayHelper.Changebase(e.Value.ToString(), ENumericBase.Dec, item));
 					}
+
 					Grid.Rows[e.RowIndex].Cells[e.ColumnIndex].ToolTipText = tipbuilder.ToString();
 				}
+
 				e.Value = OperandDisplayHelper.ToString(OwnerDefinition as MethodDefinition, e.Value);
 			}
 		}
-
-		#endregion
 	}
 }

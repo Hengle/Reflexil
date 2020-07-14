@@ -1,20 +1,85 @@
 ////////////////////////////////////////////////////////////////////////////////
-// v2.0 - ??/05/2015 ///////////////////////////////////////////////////////////
+// v2.4 - ../../2019 ///////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+  upgrades:
+    - de4Dot/dnlib update.
+
+////////////////////////////////////////////////////////////////////////////////
+// v2.3 - 28/05/2019 ///////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+  news:
+    - Support for ILSpy v4.x (now using System.Reflection.Metadata).
+
+  upgrades:
+    - de4Dot/dnlib update.
+    - Mono.Cecil update.
+
+  bugfixes:
+    - Fix assembly loading and resolution with Mono.Cecil.
+    - Fix DPI issues with progress bars.
+
+////////////////////////////////////////////////////////////////////////////////
+// v2.2 - 17/01/2018 ///////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+  news:
+    - Preliminary support for JustDecompile.
+
+  upgrades:
+    - de4Dot/dnlib update. Support for deobfuscating 'Confuser'.
+    - Mono.Cecil 0.10 update.
+    - Don't close Edit/Create instruction dialog on opc/operand inconsistency.
+    - Add editors for all primitive types for constant/custom attributes.
+    - Support for ILSpy 3.x
+    - Automatically compute imports for code injection, from current type
+      members and method calls. 
+
+  bugfixes:
+    - Fix method matching with Reflector.
+    - Fix renaming fields losing constant values.
+
+////////////////////////////////////////////////////////////////////////////////
+// v2.1 - 10/08/2016 ///////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+  news:
+    - Replace with NOP in the instructions editor.
+    - Added copy/paste to instruction editing grid, thanks to Thijs Kroesbergen.
+    - Added SilverLight 5 compilation profile.
+
+  upgrades:
+    - Use resolver for system assemblies if NoStdLib is set.
+    - Add extra registry keys for finding SDK tools (thanks to Sander Cox).
+
+  bugfixes:
+    - Fix resource mapping mechanism with ILSpy.
+    - Fix version display with ILSpy.
+    - Fix API compatibility with ILSpy 2.4 (you will need to use this version).
+    - Fix cannot select operator methods when editing call/callvirt opcodes.
+    - Fix import with generic parameters.
+
+////////////////////////////////////////////////////////////////////////////////
+// v2.0 - 31/09/2015 ///////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
   news:
     - ILSpy support.
-    - hot assembly replacement feature for ILSpy 2.3 and Reflector 8.5.
+    - hot assembly replacement feature for ILSpy 2.3+ and Reflector 8.5+.
+    - support for generic instance types and methods in the instruction editor.
     - generic type arguments editor when selecting a type/method with generic
-      parameters.
+      parameter(s).
 
   upgrades:
-    - plugin API cleanup.
+    - improved member matching with code injection.
     - try to resolve an assembly from the host assemblies first, then use the
       default resolver.
     - de4Dot 3.1.4 update.
-    - tooltips with long types
-    - better name display with generic instance providers.
+    - Mono.Cecil 0.9.6 update.
+    - tooltips for long types.
+    - better display with generic instance providers.
+    - plugin API cleanup.
 
   bugfixes:
     - fixed .NET 3.5 profile detection.
@@ -27,6 +92,10 @@
     - workaround Reflector not displaying sub menu separators.
     - fixed C# code generation with generics.
     - fixed type/method hierarchy mapping with generics.
+    - fixed NRE when editing custom attribute.
+    - fixed Reflector type search for lambda methods using the same parameter.
+    - the assembly browser is now able to properly locate generic members.
+    - fixed broken symbol loader.
 
 ////////////////////////////////////////////////////////////////////////////////
 // v1.9 - 01/12/2014 ///////////////////////////////////////////////////////////

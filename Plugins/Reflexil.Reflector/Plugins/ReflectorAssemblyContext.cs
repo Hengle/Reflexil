@@ -1,4 +1,4 @@
-/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -21,7 +21,6 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Mono.Cecil;
 using Reflector.CodeModel;
 using System.Collections;
@@ -30,12 +29,13 @@ namespace Reflexil.Plugins.Reflector
 {
 	internal sealed class ReflectorAssemblyContext : BaseAssemblyContext
 	{
-
 		private readonly Dictionary<IMethodDeclaration, MethodDefinition> _methodcache;
 		private readonly Dictionary<IPropertyDeclaration, PropertyDefinition> _propertycache;
 		private readonly Dictionary<IFieldDeclaration, FieldDefinition> _fieldcache;
 		private readonly Dictionary<IEventDeclaration, EventDefinition> _eventcache;
+
 		private readonly Dictionary<IResource, Resource> _resourcecache;
+
 		//fix: use toString() instead of object himself (getHashcode seems to be overriden)
 		private readonly Dictionary<string, AssemblyNameReference> _assemblynamereferencecache;
 		private readonly Dictionary<ITypeDeclaration, TypeDefinition> _typecache;
@@ -53,7 +53,7 @@ namespace Reflexil.Plugins.Reflector
 
 		public void RemoveFromCache(object item)
 		{
-			var dictionaries = new IDictionary[] { _methodcache, _propertycache, _fieldcache, _eventcache, _resourcecache, _assemblynamereferencecache, _typecache };
+			var dictionaries = new IDictionary[] {_methodcache, _propertycache, _fieldcache, _eventcache, _resourcecache, _assemblynamereferencecache, _typecache};
 			foreach (var dic in dictionaries)
 				dic.Remove(item);
 		}
@@ -125,6 +125,5 @@ namespace Reflexil.Plugins.Reflector
 
 			return TryGetOrAdd(_resourcecache, item, res => ReflectorHelper.FindMatchingResource(AssemblyDefinition, res));
 		}
-
 	}
 }

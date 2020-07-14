@@ -1,35 +1,19 @@
 //
-// ImageReader.cs
-//
 // Author:
 //   Jb Evain (jbevain@gmail.com)
 //
-// Copyright (c) 2008 - 2011 Jb Evain
+// Copyright (c) 2008 - 2015 Jb Evain
+// Copyright (c) 2008 - 2011 Novell, Inc.
 //
-// Permission is hereby granted, free of charge, to any person obtaining
-// a copy of this software and associated documentation files (the
-// "Software"), to deal in the Software without restriction, including
-// without limitation the rights to use, copy, modify, merge, publish,
-// distribute, sublicense, and/or sell copies of the Software, and to
-// permit persons to whom the Software is furnished to do so, subject to
-// the following conditions:
-//
-// The above copyright notice and this permission notice shall be
-// included in all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-// LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-// OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-// WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+// Licensed under the MIT/X11 license.
 //
 
 using System;
 using System.IO;
 
+using Mono.Cecil.Cil;
 using Mono.Cecil.Metadata;
+using Mono.Collections.Generic;
 
 using RVA = System.UInt32;
 
@@ -42,22 +26,19 @@ namespace Mono.Cecil.PE {
 		DataDirectory cli;
 		DataDirectory metadata;
 
-		public ImageReader (Stream stream)
-			: base (stream)
+		uint table_heap_offset;
+
+		public ImageReader (Disposable<Stream> stream, string file_name)
+			: base (stream.value)
 		{
 			image = new Image ();
-
-			image.FileName = stream.GetFullyQualifiedName ();
+			image.Stream = stream;
+			image.FileName = file_name;
 		}
 
 		void MoveTo (DataDirectory directory)
 		{
 			BaseStream.Position = image.ResolveVirtualAddress (directory.VirtualAddress);
-		}
-
-		void MoveTo (uint position)
-		{
-			BaseStream.Position = position;
 		}
 
 		void ReadImage ()
@@ -91,39 +72,30 @@ namespace Mono.Cecil.PE {
 			ushort sections = ReadUInt16 ();
 
 			// TimeDateStamp		4
+			image.Timestamp = ReadUInt32 ();
 			// PointerToSymbolTable	4
 			// NumberOfSymbols		4
 			// OptionalHeaderSize	2
-			Advance (14);
+			Advance (10);
 
 			// Characteristics		2
 			ushort characteristics = ReadUInt16 ();
 
-			ushort subsystem, dll_characteristics;
-			ReadOptionalHeaders (out subsystem, out dll_characteristics);
+			ushort subsystem, dll_characteristics, linker_version;
+			ReadOptionalHeaders (out subsystem, out dll_characteristics, out linker_version);
 			ReadSections (sections);
 			ReadCLIHeader ();
 			ReadMetadata ();
+			ReadDebugHeader ();
 
 			image.Kind = GetModuleKind (characteristics, subsystem);
 			image.Characteristics = (ModuleCharacteristics) dll_characteristics;
+			image.LinkerVersion = linker_version;
 		}
 
 		TargetArchitecture ReadArchitecture ()
 		{
-			var machine = ReadUInt16 ();
-			switch (machine) {
-			case 0x014c:
-				return TargetArchitecture.I386;
-			case 0x8664:
-				return TargetArchitecture.AMD64;
-			case 0x0200:
-				return TargetArchitecture.IA64;
-			case 0x01c4:
-				return TargetArchitecture.ARMv7;
-			}
-
-			throw new NotSupportedException ();
+			return (TargetArchitecture) ReadUInt16 ();
 		}
 
 		static ModuleKind GetModuleKind (ushort characteristics, ushort subsystem)
@@ -137,7 +109,7 @@ namespace Mono.Cecil.PE {
 			return ModuleKind.Console;
 		}
 
-		void ReadOptionalHeaders (out ushort subsystem, out ushort dll_characteristics)
+		void ReadOptionalHeaders (out ushort subsystem, out ushort dll_characteristics, out ushort linker)
 		{
 			// - PEOptionalHeader
 			//   - StandardFieldsHeader
@@ -147,8 +119,7 @@ namespace Mono.Cecil.PE {
 
 			//						pe32 || pe64
 
-			// LMajor				1
-			// LMinor				1
+			linker = ReadUInt16 ();
 			// CodeSize				4
 			// InitializedDataSize	4
 			// UninitializedDataSize4
@@ -171,7 +142,7 @@ namespace Mono.Cecil.PE {
 			// ImageSize			4
 			// HeaderSize			4
 			// FileChecksum			4
-			Advance (66);
+			Advance (64);
 
 			// SubSystem			2
 			subsystem = ReadUInt16 ();
@@ -189,12 +160,18 @@ namespace Mono.Cecil.PE {
 
 			// ExportTable			8
 			// ImportTable			8
+
+			Advance (pe64 ? 56 : 40);
+
 			// ResourceTable		8
+
+			image.Win32Resources = ReadDataDirectory ();
+
 			// ExceptionTable		8
 			// CertificateTable		8
 			// BaseRelocationTable	8
 
-			Advance (pe64 ? 88 : 72);
+			Advance (24);
 
 			// Debug				8
 			image.Debug = ReadDataDirectory ();
@@ -279,29 +256,9 @@ namespace Mono.Cecil.PE {
 				Advance (16);
 
 				sections [i] = section;
-
-				ReadSectionData (section);
 			}
 
 			image.Sections = sections;
-		}
-
-		void ReadSectionData (Section section)
-		{
-			var position = BaseStream.Position;
-
-			MoveTo (section.PointerToRawData);
-
-			var length = (int) section.SizeOfRawData;
-			var data = new byte [length];
-			int offset = 0, read;
-
-			while ((read = Read (data, offset, length - offset)) > 0)
-				offset += read;
-
-			section.Data = data;
-
-			BaseStream.Position = position;
 		}
 
 		void ReadCLIHeader ()
@@ -359,46 +316,104 @@ namespace Mono.Cecil.PE {
 			for (int i = 0; i < streams; i++)
 				ReadMetadataStream (section);
 
+			if (image.PdbHeap != null)
+				ReadPdbHeap ();
+
 			if (image.TableHeap != null)
 				ReadTableHeap ();
+		}
+
+		void ReadDebugHeader ()
+		{
+			if (image.Debug.IsZero) {
+				image.DebugHeader = new ImageDebugHeader (Empty<ImageDebugHeaderEntry>.Array);
+				return;
+			}
+
+			MoveTo (image.Debug);
+
+			var entries = new ImageDebugHeaderEntry [(int) image.Debug.Size / ImageDebugDirectory.Size];
+
+			for (int i = 0; i < entries.Length; i++) {
+				var directory = new ImageDebugDirectory {
+					Characteristics = ReadInt32 (),
+					TimeDateStamp = ReadInt32 (),
+					MajorVersion = ReadInt16 (),
+					MinorVersion = ReadInt16 (),
+					Type = (ImageDebugType) ReadInt32 (),
+					SizeOfData = ReadInt32 (),
+					AddressOfRawData = ReadInt32 (),
+					PointerToRawData = ReadInt32 (),
+				};
+
+				if (directory.AddressOfRawData == 0) {
+					entries [i] = new ImageDebugHeaderEntry (directory, Empty<byte>.Array);
+					continue;
+				}
+
+				var position = Position;
+				try {
+					MoveTo ((uint) directory.PointerToRawData);
+					var data = ReadBytes (directory.SizeOfData);
+					entries [i] = new ImageDebugHeaderEntry (directory, data);
+				} finally {
+					Position = position;
+				}
+			}
+
+			image.DebugHeader = new ImageDebugHeader (entries);
 		}
 
 		void ReadMetadataStream (Section section)
 		{
 			// Offset		4
-			uint start = metadata.VirtualAddress - section.VirtualAddress + ReadUInt32 (); // relative to the section start
+			uint offset = metadata.VirtualAddress - section.VirtualAddress + ReadUInt32 (); // relative to the section start
 
 			// Size			4
 			uint size = ReadUInt32 ();
+
+			var data = ReadHeapData (offset, size);
 
 			var name = ReadAlignedString (16);
 			switch (name) {
 			case "#~":
 			case "#-":
-				image.TableHeap = new TableHeap (section, start, size);
+				image.TableHeap = new TableHeap (data);
+				table_heap_offset = offset;
 				break;
 			case "#Strings":
-				image.StringHeap = new StringHeap (section, start, size);
+				image.StringHeap = new StringHeap (data);
 				break;
 			case "#Blob":
-				image.BlobHeap = new BlobHeap (section, start, size);
+				image.BlobHeap = new BlobHeap (data);
 				break;
 			case "#GUID":
-				image.GuidHeap = new GuidHeap (section, start, size);
+				image.GuidHeap = new GuidHeap (data);
 				break;
 			case "#US":
-				image.UserStringHeap = new UserStringHeap (section, start, size);
+				image.UserStringHeap = new UserStringHeap (data);
+				break;
+			case "#Pdb":
+				image.PdbHeap = new PdbHeap (data);
 				break;
 			}
+		}
+
+		byte [] ReadHeapData (uint offset, uint size)
+		{
+			var position = BaseStream.Position;
+			MoveTo (offset + image.MetadataSection.PointerToRawData);
+			var data = ReadBytes ((int) size);
+			BaseStream.Position = position;
+
+			return data;
 		}
 
 		void ReadTableHeap ()
 		{
 			var heap = image.TableHeap;
 
-			uint start = heap.Section.PointerToRawData;
-
-			MoveTo (heap.Offset + start);
+			MoveTo (table_heap_offset + image.MetadataSection.PointerToRawData);
 
 			// Reserved			4
 			// MajorVersion		1
@@ -417,7 +432,16 @@ namespace Mono.Cecil.PE {
 			// Sorted			8
 			heap.Sorted = ReadInt64 ();
 
-			for (int i = 0; i < TableHeap.TableCount; i++) {
+			if (image.PdbHeap != null) {
+				for (int i = 0; i < Mixin.TableCount; i++) {
+					if (!image.PdbHeap.HasTable ((Table) i))
+						continue;
+
+					heap.Tables [i].Length = image.PdbHeap.TypeSystemTableRows [i];
+				}
+			}
+
+			for (int i = 0; i < Mixin.TableCount; i++) {
 				if (!heap.HasTable ((Table) i))
 					continue;
 
@@ -451,15 +475,16 @@ namespace Mono.Cecil.PE {
 
 		void ComputeTableInformations ()
 		{
-			uint offset = (uint) BaseStream.Position - image.MetadataSection.PointerToRawData; // header
+			uint offset = (uint) BaseStream.Position - table_heap_offset - image.MetadataSection.PointerToRawData; // header
 
 			int stridx_size = image.StringHeap.IndexSize;
+			int guididx_size = image.GuidHeap != null ? image.GuidHeap.IndexSize : 2;
 			int blobidx_size = image.BlobHeap != null ? image.BlobHeap.IndexSize : 2;
 
 			var heap = image.TableHeap;
 			var tables = heap.Tables;
 
-			for (int i = 0; i < TableHeap.TableCount; i++) {
+			for (int i = 0; i < Mixin.TableCount; i++) {
 				var table = (Table) i;
 				if (!heap.HasTable (table))
 					continue;
@@ -469,7 +494,7 @@ namespace Mono.Cecil.PE {
 				case Table.Module:
 					size = 2	// Generation
 						+ stridx_size	// Name
-						+ (image.GuidHeap.IndexSize * 3);	// Mvid, EncId, EncBaseId
+						+ (guididx_size * 3);	// Mvid, EncId, EncBaseId
 					break;
 				case Table.TypeRef:
 					size = GetCodedIndexSize (CodedIndex.ResolutionScope)	// ResolutionScope
@@ -596,6 +621,8 @@ namespace Mono.Cecil.PE {
 						+ GetTableIndexSize (Table.Field);	// Field
 					break;
 				case Table.EncLog:
+					size = 8;
+					break;
 				case Table.EncMap:
 					size = 4;
 					break;
@@ -655,6 +682,45 @@ namespace Mono.Cecil.PE {
 					size = GetTableIndexSize (Table.GenericParam)	// Owner
 						+ GetCodedIndexSize (CodedIndex.TypeDefOrRef);	// Constraint
 					break;
+				case Table.Document:
+					size = blobidx_size	// Name
+						+ guididx_size	// HashAlgorithm
+						+ blobidx_size	// Hash
+						+ guididx_size;	// Language
+					break;
+				case Table.MethodDebugInformation:
+					size = GetTableIndexSize (Table.Document)  // Document
+						+ blobidx_size;	// SequencePoints
+					break;
+				case Table.LocalScope:
+					size = GetTableIndexSize (Table.Method)	// Method
+						+ GetTableIndexSize (Table.ImportScope)	// ImportScope
+						+ GetTableIndexSize (Table.LocalVariable)	// VariableList
+						+ GetTableIndexSize (Table.LocalConstant)	// ConstantList
+						+ 4 * 2;	// StartOffset, Length
+					break;
+				case Table.LocalVariable:
+					size = 2	// Attributes
+						+ 2		// Index
+						+ stridx_size;	// Name
+					break;
+				case Table.LocalConstant:
+					size = stridx_size	// Name
+						+ blobidx_size;	// Signature
+					break;
+				case Table.ImportScope:
+					size = GetTableIndexSize (Table.ImportScope)	// Parent
+						+ blobidx_size;
+					break;
+				case Table.StateMachineMethod:
+					size = GetTableIndexSize (Table.Method) // MoveNextMethod
+						+ GetTableIndexSize (Table.Method);	// KickOffMethod
+					break;
+				case Table.CustomDebugInformation:
+					size = GetCodedIndexSize (CodedIndex.HasCustomDebugInformation) // Parent
+						+ guididx_size	// Kind
+						+ blobidx_size;	// Value
+					break;
 				default:
 					throw new NotSupportedException ();
 				}
@@ -666,14 +732,57 @@ namespace Mono.Cecil.PE {
 			}
 		}
 
-		public static Image ReadImageFrom (Stream stream)
+		void ReadPdbHeap ()
+		{
+			var heap = image.PdbHeap;
+
+			var buffer = new ByteBuffer (heap.data);
+
+			heap.Id = buffer.ReadBytes (20);
+			heap.EntryPoint = buffer.ReadUInt32 ();
+			heap.TypeSystemTables = buffer.ReadInt64 ();
+			heap.TypeSystemTableRows = new uint [Mixin.TableCount];
+
+			for (int i = 0; i < Mixin.TableCount; i++) {
+				var table = (Table) i;
+				if (!heap.HasTable (table))
+					continue;
+
+				heap.TypeSystemTableRows [i] = buffer.ReadUInt32 ();
+			}
+		}
+
+		public static Image ReadImage (Disposable<Stream> stream, string file_name)
 		{
 			try {
-				var reader = new ImageReader (stream);
+				var reader = new ImageReader (stream, file_name);
 				reader.ReadImage ();
 				return reader.image;
 			} catch (EndOfStreamException e) {
-				throw new BadImageFormatException (stream.GetFullyQualifiedName (), e);
+				throw new BadImageFormatException (stream.value.GetFileName (), e);
+			}
+		}
+
+		public static Image ReadPortablePdb (Disposable<Stream> stream, string file_name)
+		{
+			try {
+				var reader = new ImageReader (stream, file_name);
+				var length = (uint) stream.value.Length;
+
+				reader.image.Sections = new[] {
+					new Section {
+						PointerToRawData = 0,
+						SizeOfRawData = length,
+						VirtualAddress = 0,
+						VirtualSize = length,
+					}
+				};
+
+				reader.metadata = new DataDirectory (0, length);
+				reader.ReadMetadata ();
+				return reader.image;
+			} catch (EndOfStreamException e) {
+				throw new BadImageFormatException (stream.value.GetFileName (), e);
 			}
 		}
 	}

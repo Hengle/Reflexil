@@ -1,27 +1,5 @@
-/*
-    Copyright (C) 2012-2014 de4dot@gmail.com
+// dnlib: See LICENSE.txt for more info
 
-    Permission is hereby granted, free of charge, to any person obtaining
-    a copy of this software and associated documentation files (the
-    "Software"), to deal in the Software without restriction, including
-    without limitation the rights to use, copy, modify, merge, publish,
-    distribute, sublicense, and/or sell copies of the Software, and to
-    permit persons to whom the Software is furnished to do so, subject to
-    the following conditions:
-
-    The above copyright notice and this permission notice shall be
-    included in all copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/
-
-﻿using System.IO;
 using dnlib.IO;
 using dnlib.PE;
 
@@ -40,50 +18,38 @@ namespace dnlib.DotNet.Writer {
 		protected bool isReadOnly;
 
 		/// <inheritdoc/>
-		public FileOffset FileOffset {
-			get { return offset; }
-		}
+		public FileOffset FileOffset => offset;
 
 		/// <inheritdoc/>
-		public RVA RVA {
-			get { return rva; }
-		}
+		public RVA RVA => rva;
 
 		/// <inheritdoc/>
 		public abstract string Name { get; }
 
 		/// <inheritdoc/>
-		public bool IsEmpty {
-			get { return GetRawLength() <= 1; }
-		}
+		public bool IsEmpty => GetRawLength() <= 1;
 
 		/// <summary>
 		/// <c>true</c> if offsets require 4 bytes instead of 2 bytes.
 		/// </summary>
-		public bool IsBig {
-			get { return GetFileLength() > 0xFFFF; }
-		}
+		public bool IsBig => GetFileLength() > 0xFFFF;
 
 		/// <inheritdoc/>
-		public void SetReadOnly() {
-			isReadOnly = true;
-		}
+		public void SetReadOnly() => isReadOnly = true;
 
 		/// <inheritdoc/>
 		public virtual void SetOffset(FileOffset offset, RVA rva) {
 			this.offset = offset;
 			this.rva = rva;
+
+			// NOTE: This method can be called twice by NativeModuleWriter, see Metadata.SetOffset() for more info
 		}
 
 		/// <inheritdoc/>
-		public uint GetFileLength() {
-			return Utils.AlignUp(GetRawLength(), ALIGNMENT);
-		}
+		public uint GetFileLength() => Utils.AlignUp(GetRawLength(), ALIGNMENT);
 
 		/// <inheritdoc/>
-		public uint GetVirtualSize() {
-			return GetFileLength();
-		}
+		public uint GetVirtualSize() => GetFileLength();
 
 		/// <summary>
 		/// Gets the raw length of the heap
@@ -92,20 +58,18 @@ namespace dnlib.DotNet.Writer {
 		public abstract uint GetRawLength();
 
 		/// <inheritdoc/>
-		public void WriteTo(BinaryWriter writer) {
+		public void WriteTo(DataWriter writer) {
 			WriteToImpl(writer);
-			writer.WriteZeros((int)(Utils.AlignUp(GetRawLength(), ALIGNMENT) - GetRawLength()));
+			writer.WriteZeroes((int)(Utils.AlignUp(GetRawLength(), ALIGNMENT) - GetRawLength()));
 		}
 
 		/// <summary>
 		/// Writes all data to <paramref name="writer"/> at its current location.
 		/// </summary>
 		/// <param name="writer">Destination</param>
-		protected abstract void WriteToImpl(BinaryWriter writer);
+		protected abstract void WriteToImpl(DataWriter writer);
 
 		/// <inheritdoc/>
-		public override string ToString() {
-			return Name;
-		}
+		public override string ToString() => Name;
 	}
 }

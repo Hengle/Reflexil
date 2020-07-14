@@ -49,6 +49,7 @@
     <DefineConstants>DEBUG</DefineConstants>
     <CodeAnalysisRuleSet>AllRules.ruleset</CodeAnalysisRuleSet>
     <PlatformTarget>AnyCPU</PlatformTarget>
+    <LangVersion>4</LangVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -75,13 +76,14 @@
     <Compile Include="Compilation\Compiler.cs" />
     <Compile Include="Compilation\CompilerProfile.cs" />
     <Compile Include="Compilation\CSharpHelper.cs" />
-    <Compile Include="Compilation\CSharpKeyword.cs" />
+    <Compile Include="Compilation\CSharpKeywords.cs" />
+    <Compile Include="Compilation\NamespaceCollector.cs" />
     <Compile Include="Compilation\SpaceSurrounder.cs" />
     <Compile Include="Compilation\SupportedLanguage.cs" />
     <Compile Include="Compilation\ILanguageHelper.cs" />
     <Compile Include="Compilation\LanguageHelperFactory.cs" />
     <Compile Include="Compilation\VisualBasicHelper.cs" />
-    <Compile Include="Compilation\EVisualBasicKeywords.cs" />
+    <Compile Include="Compilation\VisualBasicKeywords.cs" />
     <Compile Include="Controls\CheckBoxComboBox\CheckBoxComboBox.cs">
       <SubType>Component</SubType>
     </Compile>
@@ -176,7 +178,19 @@
     <Compile Include="Controls\Primitive\BooleanEditor.cs">
       <SubType>UserControl</SubType>
     </Compile>
-    <Compile Include="Controls\Primitive\GenericOperandEditorBridge.cs" />
+    <Compile Include="Controls\Primitive\UShortEditor.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Controls\Primitive\ShortEditor.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Controls\Primitive\ULongEditor.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Controls\Primitive\UIntegerEditor.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Controls\Primitive\OperandEditorBridge.cs" />
     <Compile Include="Controls\Primitive\VerbatimStringEditor.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -261,7 +275,7 @@
     <Compile Include="Controls\Body\VariableReferenceEditor.cs">
       <SubType>Component</SubType>
     </Compile>
-    <Compile Include="Controls\Context\GenericTypeReferenceEditor.cs">
+    <Compile Include="Controls\Context\GenericParameterEditor.cs">
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Controls\Grid\ExceptionHandlerGridControl.cs">
@@ -332,7 +346,7 @@
     <Compile Include="Controls\Reference\FieldReferenceEditor.cs">
       <SubType>Component</SubType>
     </Compile>
-    <Compile Include="Controls\Reference\GenericMemberReferenceEditor.cs">
+    <Compile Include="Controls\Reference\MemberReferenceEditor.cs">
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Controls\Reference\TypeSpecificationEditor.cs">
@@ -365,9 +379,7 @@
     <Compile Include="Forms\AssemblyCleanerForm.Designer.cs">
       <DependentUpon>AssemblyCleanerForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="Forms\GenericInstanceForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
+    <Compile Include="Forms\GenericInstanceForm.cs" />
     <Compile Include="Forms\GenericInstanceForm.Designer.cs">
       <DependentUpon>GenericInstanceForm.cs</DependentUpon>
     </Compile>
@@ -687,7 +699,7 @@
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
       <DependentUpon>Settings.settings</DependentUpon>
     </Compile>
-    <Compile Include="Controls\Body\GenericOperandReferenceEditor.cs">
+    <Compile Include="Controls\Body\OperandReferenceEditor.cs">
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Controls\Misc\BasePopupControl.cs">
@@ -714,7 +726,7 @@
     <Compile Include="Controls\NotSupportedOperandEditor.cs">
       <SubType>Component</SubType>
     </Compile>
-    <Compile Include="Controls\Primitive\GenericOperandEditor.cs">
+    <Compile Include="Controls\Primitive\OperandEditor.cs">
       <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="Forms\InstructionSelectForm.Designer.cs">
@@ -723,10 +735,10 @@
     <Compile Include="Forms\InstructionSelectForm.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="Forms\GenericMemberReferenceForm.Designer.cs">
-      <DependentUpon>GenericMemberReferenceForm.cs</DependentUpon>
+    <Compile Include="Forms\MemberReferenceForm.Designer.cs">
+      <DependentUpon>MemberReferenceForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="Forms\GenericMemberReferenceForm.cs">
+    <Compile Include="Forms\MemberReferenceForm.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Forms\ReflexilWindow.Designer.cs">
@@ -741,6 +753,7 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="Utils\ByteHelper.cs" />
+    <Compile Include="Utils\CecilImporter.cs" />
     <Compile Include="Utils\De4DotHelper.cs" />
     <Compile Include="Utils\ReflexilAssemblyResolver.cs" />
     <Compile Include="Utils\RenameHelper.cs" />
@@ -1020,9 +1033,9 @@
       <SubType>Designer</SubType>
       <DependentUpon>InstructionSelectForm.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="Forms\GenericMemberReferenceForm.resx">
+    <EmbeddedResource Include="Forms\MemberReferenceForm.resx">
       <SubType>Designer</SubType>
-      <DependentUpon>GenericMemberReferenceForm.cs</DependentUpon>
+      <DependentUpon>MemberReferenceForm.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Forms\OverrideForm.resx">
       <SubType>Designer</SubType>
@@ -1124,9 +1137,6 @@
     <Content Include="Libs\Binaries\De4dot.dll" />
     <Content Include="Resources\bar.png" />
     <Content Include="Resources\browser.png" />
-    <None Include="Keys\ICSharpCode.NRefactory.snk" />
-    <None Include="Keys\ICSharpCode.SharpDevelop.snk" />
-    <None Include="Keys\ICSharpCode.TextEditor.snk" />
     <None Include="Resources\pastehs.png" />
     <None Include="Resources\openhs.png" />
     <None Include="Resources\savehs.png" />
@@ -1136,7 +1146,6 @@
     <None Include="Resources\findnexths.png" />
     <Content Include="Resources\opcodes.txt" />
     <None Include="app.config" />
-    <None Include="Keys\mono.snk" />
     <None Include="Keys\reflexil.snk" />
     <None Include="Properties\DataSources\Mono.Cecil.Cil.ExceptionHandler.datasource" />
     <None Include="Properties\DataSources\Mono.Cecil.Cil.Instruction.datasource" />

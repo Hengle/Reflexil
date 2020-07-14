@@ -1,4 +1,4 @@
-﻿/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+﻿/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -19,39 +19,25 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#region Imports
-
-using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
 using Mono.Cecil;
+using Reflexil.Plugins;
 using Reflexil.Utils;
-
-#endregion
 
 namespace Reflexil.Forms
 {
 	public partial class DirectoryScanForm : Form
 	{
-		#region Fields
-
 		private List<AssemblyDefinition> _referencingAssemblies = new List<AssemblyDefinition>();
-
-		#endregion
-
-		#region Properties
 
 		public AssemblyDefinition[] ReferencingAssemblies
 		{
 			get { return _referencingAssemblies.ToArray(); }
 		}
-
-		#endregion
-
-		#region Events
 
 		private void BackgroundWorker_DoWork(object sender, DoWorkEventArgs e)
 		{
@@ -62,7 +48,6 @@ namespace Reflexil.Forms
 			var asmdef = e.Argument as AssemblyDefinition;
 			if (asmdef == null)
 				return;
-
 
 			var result = new List<AssemblyDefinition>();
 			e.Result = result;
@@ -88,17 +73,18 @@ namespace Reflexil.Forms
 				string msg;
 				try
 				{
-					var refasm = AssemblyDefinition.ReadAssembly(file.FullName);
+					var refasm = PluginFactory.GetInstance().LoadAssembly(file.FullName, false);
 					result.AddRange(
 						refasm.MainModule.AssemblyReferences.Where(name => CecilHelper.ReferenceMatches(asmdef.Name, name))
 							.Select(name => refasm));
-					msg = String.Format("{0} ({1}/{2})", refasm, files.IndexOf(file), files.Count);
+					msg = string.Format("{0} ({1}/{2})", refasm, files.IndexOf(file), files.Count);
 				}
 				catch
 				{
 					msg = file.FullName;
 				}
-				worker.ReportProgress(((files.IndexOf(file) + 1)*100)/files.Count, msg);
+
+				worker.ReportProgress((files.IndexOf(file) + 1) * 100 / files.Count, msg);
 			}
 		}
 
@@ -114,10 +100,6 @@ namespace Reflexil.Forms
 			DialogResult = DialogResult.OK;
 		}
 
-		#endregion
-
-		#region Methods
-
 		public DialogResult ShowDialog(AssemblyDefinition asmdef)
 		{
 			Directory.Text = Path.GetDirectoryName(asmdef.MainModule.Image.FileName);
@@ -129,7 +111,5 @@ namespace Reflexil.Forms
 		{
 			InitializeComponent();
 		}
-
-		#endregion
 	}
 }

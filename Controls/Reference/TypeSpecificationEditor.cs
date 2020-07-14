@@ -1,4 +1,4 @@
-/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -19,29 +19,19 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#region Imports
-
 using System;
 using System.Windows.Forms;
 using Mono.Cecil;
 
-#endregion
-
 namespace Reflexil.Editors
 {
-	public sealed partial class TypeSpecificationEditor : UserControl
+	internal sealed partial class TypeSpecificationEditor : UserControl
 	{
-		#region Fields
-
 		private bool _allowArray = true;
 		private bool _allowReference = true;
 		private bool _allowPointer = true;
 
-		#endregion
-
-		#region Properties
-
-		public MethodDefinition MethodDefinition { get; set; }
+		public IGenericParameterProvider Context { get; set; }
 
 		public bool AllowArray
 		{
@@ -101,7 +91,7 @@ namespace Reflexil.Editors
 
 				foreach (var tslevel in new[] {TypeSpecificationL3, TypeSpecificationL2, TypeSpecificationL1})
 				{
-					switch ((TypeSpecification) tslevel.SelectedItem)
+					switch ((TypeSpecification)tslevel.SelectedItem)
 					{
 						case TypeSpecification.Array:
 							tref = new ArrayType(tref);
@@ -163,32 +153,19 @@ namespace Reflexil.Editors
 			}
 		}
 
-		#endregion
-
-		#region Events
-
-		//public delegate void SelectedTypeReferenceChangedEventHandler(object sender, EventArgs e);
-		//public event SelectedTypeReferenceChangedEventHandler SelectedTypeReferenceChanged;
-
 		private void Operands_SelectedIndexChanged(object sender, EventArgs e)
 		{
 			TypPanel.Controls.Clear();
-			TypPanel.Controls.Add((Control) TypeScope.SelectedItem);
-			if (MethodDefinition != null)
-			{
-				((IOperandEditor) TypeScope.SelectedItem).Initialize(MethodDefinition);
-			}
+			TypPanel.Controls.Add((Control)TypeScope.SelectedItem);
+
+			((IOperandEditor)TypeScope.SelectedItem).Refresh(Context);
 		}
-
-		#endregion
-
-		#region Methods
 
 		public TypeSpecificationEditor()
 		{
 			InitializeComponent();
 
-			TypeScope.Items.Add(new GenericTypeReferenceEditor());
+			TypeScope.Items.Add(new GenericParameterEditor());
 			TypeScope.Items.Add(new TypeReferenceEditor());
 
 			foreach (var tslevel in new[] {TypeSpecificationL1, TypeSpecificationL2, TypeSpecificationL3})
@@ -202,7 +179,5 @@ namespace Reflexil.Editors
 				tslevel.SelectedIndex = 0;
 			}
 		}
-
-		#endregion
 	}
 }

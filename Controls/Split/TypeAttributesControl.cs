@@ -1,4 +1,4 @@
-﻿/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+﻿/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -19,65 +19,36 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#region Imports
-
 using Mono.Cecil;
-
-#endregion
+using Reflexil.Utils;
 
 namespace Reflexil.Editors
 {
-	/// <summary>
-	/// Type attributes editor (all object readable/writeable non indexed properties)
-	/// </summary>
 	public partial class TypeAttributesControl : BaseTypeAttributesControl
 	{
-		#region Methods
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
 		public TypeAttributesControl()
 		{
 			InitializeComponent();
 		}
 
-		/// <summary>
-		/// Bind a type definition to this control
-		/// </summary>
-		/// <param name="tdef">Type definition to bind</param>
 		public override void Bind(TypeDefinition tdef)
 		{
 			base.Bind(tdef);
 			BaseType.SelectedOperand = tdef != null ? tdef.BaseType : null;
+			BaseType.Refresh(tdef);
 		}
 
-		#endregion
-
-		#region Events
-
-		/// <summary>
-		/// Commit changes to the TypeDefinition
-		/// </summary>
-		/// <param name="sender">sender</param>
-		/// <param name="e">arguments</param>
 		private void BaseType_Validated(object sender, System.EventArgs e)
 		{
 			if (Item == null)
 				return;
 
 			var tref = BaseType.SelectedOperand;
-			Item.BaseType = tref != null && Item.Module != null ? Item.Module.Import(tref) : null;
+			Item.BaseType = tref != null && Item.Module != null ? CecilImporter.Import(Item.Module, tref, Item) : null;
 		}
-
-		#endregion
 	}
-
-	#region VS Designer generic support
 
 	public class BaseTypeAttributesControl : SplitAttributesControl<TypeDefinition>
 	{
 	}
-
-	#endregion
 }

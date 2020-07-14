@@ -1,4 +1,4 @@
-﻿/* Reflexil Copyright (c) 2007-2015 Sebastien LEBRETON
+﻿/* Reflexil Copyright (c) 2007-2019 Sebastien Lebreton
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -19,44 +19,20 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
-#region Imports
-
-using System;
 using Mono.Cecil;
 using System.IO;
 using Reflexil.Plugins;
-
-#endregion
 
 namespace Reflexil.Utils
 {
 	public class ReflexilAssemblyResolver : DefaultAssemblyResolver
 	{
-		#region Methods
+		private readonly ReaderParameters _parameters;
 
-		public AssemblyDefinition ReadAssembly(string file, ReaderParameters parameters)
+		public ReflexilAssemblyResolver(ReaderParameters parameters)
 		{
-			return ReadAssembly(ReadModule(file, parameters));
-		}
-
-		public AssemblyDefinition ReadAssembly(ModuleDefinition module)
-		{
-			var assembly = module.Assembly;
-			if (assembly == null)
-				throw new ArgumentException();
-
-			return assembly;
-		}
-
-		public ModuleDefinition ReadModule(string file, ReaderParameters parameters)
-		{
-			if (parameters != null)
-				parameters.AssemblyResolver = this;
-
-			var module = ModuleDefinition.ReadModule(file, parameters);
-			AddSearchDirectory(Path.GetDirectoryName(file));
-
-			return module;
+			_parameters = parameters;
+			_parameters.AssemblyResolver = this;
 		}
 
 		public new void RegisterAssembly(AssemblyDefinition assembly)
@@ -69,23 +45,29 @@ namespace Reflexil.Utils
 			// Try to find the assembly in the Host list first, then use the default resolver
 			var plugin = PluginFactory.GetInstance();
 			if (plugin == null || plugin.Package == null)
-				return base.Resolve(name, parameters); ;
+				return base.Resolve(name, _parameters);
 
 			foreach (var wrapper in plugin.Package.HostAssemblies)
 			{
-				if (name.Name == wrapper.Name)
-				{
-					var context = plugin.GetAssemblyContext(wrapper.Location);
-					var adef = context.AssemblyDefinition;
+				if (name.Name != wrapper.Name)
+					continue;
 
-					if (adef.FullName == name.FullName)
-						return adef;
-				}
+				var context = plugin.GetAssemblyContext(wrapper.Location);
+				var adef = context.AssemblyDefinition;
+
+				if (adef.FullName == name.FullName)
+					return adef;
 			}
 
-			return base.Resolve(name, parameters);
+			return base.Resolve(name, _parameters);
 		}
 
-		#endregion
+		internal AssemblyDefinition ReadAssembly(string location)
+		{
+			AddSearchDirectory(Path.GetDirectoryName(location));
+			var module = ModuleDefinition.ReadModule(location, _parameters);
+
+			return module.Assembly;
+		}
 	}
 }

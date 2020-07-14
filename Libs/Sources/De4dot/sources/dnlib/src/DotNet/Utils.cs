@@ -1,51 +1,24 @@
-/*
-    Copyright (C) 2012-2014 de4dot@gmail.com
+// dnlib: See LICENSE.txt for more info
 
-    Permission is hereby granted, free of charge, to any person obtaining
-    a copy of this software and associated documentation files (the
-    "Software"), to deal in the Software without restriction, including
-    without limitation the rights to use, copy, modify, merge, publish,
-    distribute, sublicense, and/or sell copies of the Software, and to
-    permit persons to whom the Software is furnished to do so, subject to
-    the following conditions:
-
-    The above copyright notice and this permission notice shall be
-    included in all copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/
-
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Text;
-using dnlib.DotNet.MD;
 
 namespace dnlib.DotNet {
 	/// <summary>
 	/// Compares byte arrays
 	/// </summary>
-	public sealed class ByteArrayEqualityComparer : IEqualityComparer<byte[]> {
+	sealed class ByteArrayEqualityComparer : IEqualityComparer<byte[]> {
 		/// <summary>
 		/// Default instance
 		/// </summary>
 		public static readonly ByteArrayEqualityComparer Instance = new ByteArrayEqualityComparer();
 
 		/// <inheritdoc/>
-		public bool Equals(byte[] x, byte[] y) {
-			return Utils.Equals(x, y);
-		}
+		public bool Equals(byte[] x, byte[] y) => Utils.Equals(x, y);
 
 		/// <inheritdoc/>
-		public int GetHashCode(byte[] obj) {
-			return Utils.GetHashCode(obj);
-		}
+		public int GetHashCode(byte[] obj) => Utils.GetHashCode(obj);
 	}
 
 	static class Utils {
@@ -187,7 +160,17 @@ namespace dnlib.DotNet {
 		/// <param name="b">Second</param>
 		/// <returns><c>true</c> if same, <c>false</c> otherwise</returns>
 		internal static bool Equals(byte[] a, byte[] b) {
-			return CompareTo(a, b) == 0;
+			if (a == b)
+				return true;
+			if (a == null || b == null)
+				return false;
+			if (a.Length != b.Length)
+				return false;
+			for (int i = 0; i < a.Length; i++) {
+				if (a[i] != b[i])
+					return false;
+			}
+			return true;
 		}
 
 		/// <summary>
@@ -241,9 +224,7 @@ namespace dnlib.DotNet {
 		/// <param name="a">Version #1 or <c>null</c> to be treated as v0.0.0.0</param>
 		/// <param name="b">Version #2 or <c>null</c> to be treated as v0.0.0.0</param>
 		/// <returns><c>true</c> if same, <c>false</c> otherwise</returns>
-		internal static bool Equals(Version a, Version b) {
-			return CompareTo(a, b) == 0;
-		}
+		internal static bool Equals(Version a, Version b) => CompareTo(a, b) == 0;
 
 		/// <summary>
 		/// Creates a new <see cref="Version"/> instance with no undefined version values (eg.
@@ -257,9 +238,7 @@ namespace dnlib.DotNet {
 			return new Version(a.Major, a.Minor, GetDefaultVersionValue(a.Build), GetDefaultVersionValue(a.Revision));
 		}
 
-		static int GetDefaultVersionValue(int val) {
-			return val == -1 ? 0 : val;
-		}
+		static int GetDefaultVersionValue(int val) => val == -1 ? 0 : val;
 
 		/// <summary>
 		/// Parses a version string
@@ -282,9 +261,7 @@ namespace dnlib.DotNet {
 		/// <param name="a">First</param>
 		/// <param name="b">Second</param>
 		/// <returns>&lt; 0 if a &lt; b, 0 if a == b, &gt; 0 if a &gt; b</returns>
-		internal static int LocaleCompareTo(UTF8String a, UTF8String b) {
-			return GetCanonicalLocale(a).CompareTo(GetCanonicalLocale(b));
-		}
+		internal static int LocaleCompareTo(UTF8String a, UTF8String b) => GetCanonicalLocale(a).CompareTo(GetCanonicalLocale(b));
 
 		/// <summary>
 		/// Compares two locales (cultures)
@@ -292,9 +269,7 @@ namespace dnlib.DotNet {
 		/// <param name="a">First</param>
 		/// <param name="b">Second</param>
 		/// <returns><c>true</c> if same, <c>false</c> otherwise</returns>
-		internal static bool LocaleEquals(UTF8String a, UTF8String b) {
-			return LocaleCompareTo(a, b) == 0;
-		}
+		internal static bool LocaleEquals(UTF8String a, UTF8String b) => LocaleCompareTo(a, b) == 0;
 
 		/// <summary>
 		/// Compares two locales (cultures)
@@ -302,9 +277,7 @@ namespace dnlib.DotNet {
 		/// <param name="a">First</param>
 		/// <param name="b">Second</param>
 		/// <returns>&lt; 0 if a &lt; b, 0 if a == b, &gt; 0 if a &gt; b</returns>
-		internal static int LocaleCompareTo(UTF8String a, string b) {
-			return GetCanonicalLocale(a).CompareTo(GetCanonicalLocale(b));
-		}
+		internal static int LocaleCompareTo(UTF8String a, string b) => GetCanonicalLocale(a).CompareTo(GetCanonicalLocale(b));
 
 		/// <summary>
 		/// Compares two locales (cultures)
@@ -312,22 +285,16 @@ namespace dnlib.DotNet {
 		/// <param name="a">First</param>
 		/// <param name="b">Second</param>
 		/// <returns><c>true</c> if same, <c>false</c> otherwise</returns>
-		internal static bool LocaleEquals(UTF8String a, string b) {
-			return LocaleCompareTo(a, b) == 0;
-		}
+		internal static bool LocaleEquals(UTF8String a, string b) => LocaleCompareTo(a, b) == 0;
 
 		/// <summary>
 		/// Gets the hash code of a locale
 		/// </summary>
 		/// <param name="a">Value</param>
 		/// <returns>The hash code</returns>
-		internal static int GetHashCodeLocale(UTF8String a) {
-			return GetCanonicalLocale(a).GetHashCode();
-		}
+		internal static int GetHashCodeLocale(UTF8String a) => GetCanonicalLocale(a).GetHashCode();
 
-		static string GetCanonicalLocale(UTF8String locale) {
-			return GetCanonicalLocale(UTF8String.ToSystemStringOrEmpty(locale));
-		}
+		static string GetCanonicalLocale(UTF8String locale) => GetCanonicalLocale(UTF8String.ToSystemStringOrEmpty(locale));
 
 		static string GetCanonicalLocale(string locale) {
 			var s = locale.ToUpperInvariant();
@@ -341,87 +308,13 @@ namespace dnlib.DotNet {
 		/// </summary>
 		/// <param name="v">Value</param>
 		/// <param name="alignment">Alignment</param>
-		public static uint AlignUp(uint v, uint alignment) {
-			return (v + alignment - 1) & ~(alignment - 1);
-		}
+		public static uint AlignUp(uint v, uint alignment) => (v + alignment - 1) & ~(alignment - 1);
 
 		/// <summary>
 		/// Align up
 		/// </summary>
 		/// <param name="v">Value</param>
 		/// <param name="alignment">Alignment</param>
-		public static int AlignUp(int v, uint alignment) {
-			return (int)AlignUp((uint)v, alignment);
-		}
-
-		/// <summary>
-		/// Gets length of compressed integer
-		/// </summary>
-		/// <param name="value">Integer</param>
-		/// <returns>Size of compressed integer in bytes (1, 2 or 4 bytes)</returns>
-		/// <exception cref="ArgumentOutOfRangeException"><paramref name="value"/> can't be compressed (too big)</exception>
-		public static int GetCompressedUInt32Length(uint value) {
-			if (value <= 0x7F)
-				return 1;
-			if (value <= 0x3FFF)
-				return 2;
-			if (value <= 0x1FFFFFFF)
-				return 4;
-			throw new ArgumentOutOfRangeException("UInt32 value can't be compressed");
-		}
-
-		/// <summary>
-		/// Writes a compressed <see cref="UInt32"/>
-		/// </summary>
-		/// <param name="writer">Writer</param>
-		/// <param name="value">Value</param>
-		/// <exception cref="ArgumentOutOfRangeException"><paramref name="value"/> can't be compressed (too big)</exception>
-		public static void WriteCompressedUInt32(this BinaryWriter writer, uint value) {
-			if (value <= 0x7F)
-				writer.Write((byte)value);
-			else if (value <= 0x3FFF) {
-				writer.Write((byte)((value >> 8) | 0x80));
-				writer.Write((byte)value);
-			}
-			else if (value <= 0x1FFFFFFF) {
-				writer.Write((byte)((value >> 24) | 0xC0));
-				writer.Write((byte)(value >> 16));
-				writer.Write((byte)(value >> 8));
-				writer.Write((byte)value);
-			}
-			else
-				throw new ArgumentOutOfRangeException("UInt32 value can't be compressed");
-		}
-
-		/// <summary>
-		/// Writes a compressed <see cref="Int32"/>
-		/// </summary>
-		/// <param name="writer">Writer</param>
-		/// <param name="value">Value</param>
-		/// <exception cref="ArgumentOutOfRangeException"><paramref name="value"/> can't be compressed (too big/small)</exception>
-		public static void WriteCompressedInt32(this BinaryWriter writer, int value) {
-			// This is almost identical to compressing a UInt32, except that we first
-			// recode value so the sign bit is in bit 0. Then we compress it the same
-			// way a UInt32 is compressed.
-			uint sign = (uint)value >> 31;
-			if (-0x40 <= value && value <= 0x3F) {
-				uint v = (uint)((value & 0x3F) << 1) | sign;
-				writer.Write((byte)v);
-			}
-			else if (-0x2000 <= value && value <= 0x1FFF) {
-				uint v = ((uint)(value & 0x1FFF) << 1) | sign;
-				writer.Write((byte)((v >> 8) | 0x80));
-				writer.Write((byte)v);
-			}
-			else if (-0x10000000 <= value && value <= 0x0FFFFFFF) {
-				uint v = ((uint)(value & 0x0FFFFFFF) << 1) | sign;
-				writer.Write((byte)((v >> 24) | 0xC0));
-				writer.Write((byte)(v >> 16));
-				writer.Write((byte)(v >> 8));
-				writer.Write((byte)v);
-			}
-			else
-				throw new ArgumentOutOfRangeException("Int32 value can't be compressed");
-		}
+		public static int AlignUp(int v, uint alignment) => (int)AlignUp((uint)v, alignment);
 	}
 }

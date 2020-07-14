@@ -1,86 +1,33 @@
-/*
-    Copyright (C) 2012-2014 de4dot@gmail.com
+// dnlib: See LICENSE.txt for more info
 
-    Permission is hereby granted, free of charge, to any person obtaining
-    a copy of this software and associated documentation files (the
-    "Software"), to deal in the Software without restriction, including
-    without limitation the rights to use, copy, modify, merge, publish,
-    distribute, sublicense, and/or sell copies of the Software, and to
-    permit persons to whom the Software is furnished to do so, subject to
-    the following conditions:
+using System.Threading;
 
-    The above copyright notice and this permission notice shall be
-    included in all copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/
-
-using dnlib.Threading;
-
-﻿namespace dnlib.DotNet {
+namespace dnlib.DotNet {
 	/// <summary>
 	/// Represents a public key
 	/// </summary>
 	public sealed class PublicKey : PublicKeyBase {
 		const AssemblyHashAlgorithm DEFAULT_ALGORITHM = AssemblyHashAlgorithm.SHA1;
 		PublicKeyToken publicKeyToken;
-#if THREAD_SAFE
-		readonly Lock theLock = Lock.Create();
-#endif
 
 		/// <summary>
 		/// Gets the <see cref="PublicKeyToken"/>
 		/// </summary>
 		public override PublicKeyToken Token {
 			get {
-#if THREAD_SAFE
-				theLock.EnterWriteLock(); try {
-#endif
-				if (publicKeyToken == null && !IsNullOrEmpty_NoLock)
-					publicKeyToken = AssemblyHash.CreatePublicKeyToken(data);
+				if (publicKeyToken == null && !IsNullOrEmpty)
+					Interlocked.CompareExchange(ref publicKeyToken, AssemblyHash.CreatePublicKeyToken(data), null);
 				return publicKeyToken;
-#if THREAD_SAFE
-				} finally { theLock.ExitWriteLock(); }
-#endif
 			}
 		}
 
 		/// <inheritdoc/>
-		public override byte[] Data {
-			get {
-#if THREAD_SAFE
-				theLock.EnterReadLock(); try {
-#endif
-				return data;
-#if THREAD_SAFE
-				} finally { theLock.ExitReadLock(); }
-#endif
-			}
-			set {
-#if THREAD_SAFE
-				theLock.EnterWriteLock(); try {
-#endif
-				if (data == value)
-					return;
-				data = value;
-				publicKeyToken = null;
-#if THREAD_SAFE
-				} finally { theLock.ExitWriteLock(); }
-#endif
-			}
-		}
+		public override byte[] Data => data;
 
 		/// <summary>
-		/// Default constructor
+		/// Constructor
 		/// </summary>
-		public PublicKey() {
-		}
+		public PublicKey() : base((byte[])null) { }
 
 		/// <summary>
 		/// Constructor
@@ -110,8 +57,6 @@ using dnlib.Threading;
 		}
 
 		/// <inheritdoc/>
-		public override int GetHashCode() {
-			return Utils.GetHashCode(Data);
-		}
+		public override int GetHashCode() => Utils.GetHashCode(Data);
 	}
 }

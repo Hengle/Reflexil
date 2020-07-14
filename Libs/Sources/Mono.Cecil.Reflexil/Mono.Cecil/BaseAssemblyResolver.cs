@@ -1,34 +1,17 @@
 //
-// BaseAssemblyResolver.cs
-//
 // Author:
 //   Jb Evain (jbevain@gmail.com)
 //
-// Copyright (c) 2008 - 2011 Jb Evain
+// Copyright (c) 2008 - 2015 Jb Evain
+// Copyright (c) 2008 - 2011 Novell, Inc.
 //
-// Permission is hereby granted, free of charge, to any person obtaining
-// a copy of this software and associated documentation files (the
-// "Software"), to deal in the Software without restriction, including
-// without limitation the rights to use, copy, modify, merge, publish,
-// distribute, sublicense, and/or sell copies of the Software, and to
-// permit persons to whom the Software is furnished to do so, subject to
-// the following conditions:
-//
-// The above copyright notice and this permission notice shall be
-// included in all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-// LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-// OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-// WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+// Licensed under the MIT/X11 license.
 //
 
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using System.Text;
 
 using Mono.Collections.Generic;
@@ -51,10 +34,10 @@ namespace Mono.Cecil {
 		}
 	}
 
-#if !SILVERLIGHT && !CF
+#if !NET_CORE
 	[Serializable]
 #endif
-	public class AssemblyResolutionException : FileNotFoundException {
+	public sealed class AssemblyResolutionException : FileNotFoundException {
 
 		readonly AssemblyNameReference reference;
 
@@ -63,13 +46,18 @@ namespace Mono.Cecil {
 		}
 
 		public AssemblyResolutionException (AssemblyNameReference reference)
-			: base (string.Format ("Failed to resolve assembly: '{0}'", reference))
+			: this (reference, null)
+		{
+		}
+
+		public AssemblyResolutionException (AssemblyNameReference reference, Exception innerException)
+			: base (string.Format ("Failed to resolve assembly: '{0}'", reference), innerException)
 		{
 			this.reference = reference;
 		}
 
-#if !SILVERLIGHT && !CF
-		protected AssemblyResolutionException (
+#if !NET_CORE
+		AssemblyResolutionException (
 			System.Runtime.Serialization.SerializationInfo info,
 			System.Runtime.Serialization.StreamingContext context)
 			: base (info, context)
@@ -84,7 +72,11 @@ namespace Mono.Cecil {
 
 		readonly Collection<string> directories;
 
-#if !SILVERLIGHT && !CF
+#if NET_CORE
+		// Maps file names of available trusted platform assemblies to their full paths.
+		// Internal for testing.
+		internal static readonly Lazy<Dictionary<string, string>> TrustedPlatformAssemblies = new Lazy<Dictionary<string, string>> (CreateTrustedPlatformAssemblyMap);
+#else
 		Collection<string> gac_paths;
 #endif
 
@@ -103,19 +95,6 @@ namespace Mono.Cecil {
 			var directories = new string [this.directories.size];
 			Array.Copy (this.directories.items, directories, directories.Length);
 			return directories;
-		}
-
-		public virtual AssemblyDefinition Resolve (string fullName)
-		{
-			return Resolve (fullName, new ReaderParameters ());
-		}
-
-		public virtual AssemblyDefinition Resolve (string fullName, ReaderParameters parameters)
-		{
-			if (fullName == null)
-				throw new ArgumentNullException ("fullName");
-
-			return Resolve (AssemblyNameReference.Parse (fullName), parameters);
 		}
 
 		public event AssemblyResolveEventHandler ResolveFailure;
@@ -140,27 +119,32 @@ namespace Mono.Cecil {
 
 		public virtual AssemblyDefinition Resolve (AssemblyNameReference name, ReaderParameters parameters)
 		{
-			if (name == null)
-				throw new ArgumentNullException ("name");
-			if (parameters == null)
-				parameters = new ReaderParameters ();
+			Mixin.CheckName (name);
+			Mixin.CheckParameters (parameters);
 
 			var assembly = SearchDirectory (name, directories, parameters);
 			if (assembly != null)
 				return assembly;
 
-#if !SILVERLIGHT && !CF
 			if (name.IsRetargetable) {
 				// if the reference is retargetable, zero it
-				name = new AssemblyNameReference (name.Name, new Version (0, 0, 0, 0)) {
+				name = new AssemblyNameReference (name.Name, Mixin.ZeroVersion) {
 					PublicKeyToken = Empty<byte>.Array,
 				};
 			}
 
+#if NET_CORE
+			assembly = SearchTrustedPlatformAssemblies (name, parameters);
+			if (assembly != null)
+				return assembly;
+#else
 			var framework_dir = Path.GetDirectoryName (typeof (object).Module.FullyQualifiedName);
+			var framework_dirs = on_mono
+				? new [] { framework_dir, Path.Combine (framework_dir, "Facades") }
+				: new [] { framework_dir };
 
 			if (IsZero (name.Version)) {
-				assembly = SearchDirectory (name, new [] { framework_dir }, parameters);
+				assembly = SearchDirectory (name, framework_dirs, parameters);
 				if (assembly != null)
 					return assembly;
 			}
@@ -175,11 +159,10 @@ namespace Mono.Cecil {
 			if (assembly != null)
 				return assembly;
 
-			assembly = SearchDirectory (name, new [] { framework_dir }, parameters);
+			assembly = SearchDirectory (name, framework_dirs, parameters);
 			if (assembly != null)
 				return assembly;
 #endif
-
 			if (ResolveFailure != null) {
 				assembly = ResolveFailure (this, name);
 				if (assembly != null)
@@ -189,14 +172,57 @@ namespace Mono.Cecil {
 			throw new AssemblyResolutionException (name);
 		}
 
-		AssemblyDefinition SearchDirectory (AssemblyNameReference name, IEnumerable<string> directories, ReaderParameters parameters)
+#if NET_CORE
+		AssemblyDefinition SearchTrustedPlatformAssemblies (AssemblyNameReference name, ReaderParameters parameters)
 		{
-			var extensions = new [] { ".exe", ".dll" };
+			if (name.IsWindowsRuntime)
+				return null;
+
+			if (TrustedPlatformAssemblies.Value.TryGetValue (name.Name, out string path))
+				return GetAssembly (path, parameters);
+
+			return null;
+		}
+
+		static Dictionary<string, string> CreateTrustedPlatformAssemblyMap ()
+		{
+			var result = new Dictionary<string, string> (StringComparer.OrdinalIgnoreCase);
+
+			string paths;
+
+			try {
+				// AppContext is only available on platforms that implement .NET Standard 1.6
+				var appContextType = Type.GetType ("System.AppContext, System.AppContext, Version=4.1.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a", throwOnError: false);
+				var getData = appContextType?.GetTypeInfo ().GetDeclaredMethod ("GetData");
+				paths = (string) getData?.Invoke (null, new [] { "TRUSTED_PLATFORM_ASSEMBLIES" });
+			} catch {
+				paths = null;
+			}
+
+			if (paths == null)
+				return result;
+
+			foreach (var path in paths.Split (Path.PathSeparator))
+				if (string.Equals (Path.GetExtension (path), ".dll", StringComparison.OrdinalIgnoreCase))
+					result [Path.GetFileNameWithoutExtension (path)] = path;
+
+			return result;
+		}
+#endif
+
+		protected virtual AssemblyDefinition SearchDirectory (AssemblyNameReference name, IEnumerable<string> directories, ReaderParameters parameters)
+		{
+			var extensions = name.IsWindowsRuntime ? new [] { ".winmd", ".dll" } : new [] { ".exe", ".dll" };
 			foreach (var directory in directories) {
 				foreach (var extension in extensions) {
 					string file = Path.Combine (directory, name.Name + extension);
-					if (File.Exists (file))
+					if (!File.Exists (file))
+						continue;
+					try {
 						return GetAssembly (file, parameters);
+					} catch (System.BadImageFormatException) {
+						continue;
+					}
 				}
 			}
 
@@ -205,15 +231,14 @@ namespace Mono.Cecil {
 
 		static bool IsZero (Version version)
 		{
-			return version == null || (version.Major == 0 && version.Minor == 0 && version.Build == 0 && version.Revision == 0);
+			return version.Major == 0 && version.Minor == 0 && version.Build == 0 && version.Revision == 0;
 		}
 
-#if !SILVERLIGHT && !CF
+#if !NET_CORE
 		AssemblyDefinition GetCorlib (AssemblyNameReference reference, ReaderParameters parameters)
 		{
 			var version = reference.Version;
 			var corlib = typeof (object).Assembly.GetName ();
-
 			if (corlib.Version == version || IsZero (version))
 				return GetAssembly (typeof (object).Module.FullyQualifiedName, parameters);
 
@@ -256,6 +281,12 @@ namespace Mono.Cecil {
 			var file = Path.Combine (path, "mscorlib.dll");
 			if (File.Exists (file))
 				return GetAssembly (file, parameters);
+
+			if (on_mono && Directory.Exists (path + "-api")) {
+				file = Path.Combine (path + "-api", "mscorlib.dll");
+				if (File.Exists (file))
+					return GetAssembly (file, parameters);
+			}
 
 			return null;
 		}
@@ -349,7 +380,7 @@ namespace Mono.Cecil {
 
 			return null;
 		}
-
+#endif
 		static string GetAssemblyFile (AssemblyNameReference reference, string prefix, string gac)
 		{
 			var gac_folder = new StringBuilder ()
@@ -365,6 +396,15 @@ namespace Mono.Cecil {
 					Path.Combine (gac, reference.Name), gac_folder.ToString ()),
 				reference.Name + ".dll");
 		}
-#endif
+
+		public void Dispose ()
+		{
+			Dispose (true);
+			GC.SuppressFinalize (this);
+		}
+
+		protected virtual void Dispose (bool disposing)
+		{
+		}
 	}
 }
